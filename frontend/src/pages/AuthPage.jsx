@@ -220,7 +220,7 @@ const AuthPage = () => {
               </div>
               <div>
                 <p className="text-white font-medium">Talha Belal</p>
-                <p className="text-sm text-zinc-500">Founder & CEO</p>
+                <p className="text-sm text-zinc-500">Founder & MD</p>
               </div>
             </div>
           </div>
