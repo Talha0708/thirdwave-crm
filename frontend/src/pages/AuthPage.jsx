@@ -93,7 +93,9 @@ const AuthPage = () => {
 
           {/* Footer tag */}
           <p className="relative z-10 text-xs text-gray-600 font-medium mt-12 lg:mt-0">
-            Powered by Gemini AI · Built for BD E-Commerce
+            Powered by Thirdwave AI
+A Vision by Talha Belal
+Redefining E-Commerce in Bangladesh 
           </p>
         </div>
 
