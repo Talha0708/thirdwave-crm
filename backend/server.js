@@ -559,3 +559,5 @@ app.use((err, req, res, _next) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Thirdwave SaaS API running on port ${PORT}`));
+// Export the app for Vercel Serverless Functions
+module.exports = app;
