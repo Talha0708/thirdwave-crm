@@ -1,37 +1,29 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom'; // 🔥 রাউটিংয়ের জন্য এটি অ্যাড করা হয়েছে
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { Bot, Shield, Loader2, AlertCircle, ArrowRight } from 'lucide-react';
-
-const FEATURES = [
-  {
-    icon: Bot,
-    color: 'text-purple-400',
-    title: 'Smart Auto-Reply',
-    desc: '24/7 AI chatbot handles customer inquiries automatically via Facebook Messenger.',
-  },
-  {
-    icon: Shield,
-    color: 'text-blue-400',
-    title: '100% Secure Access',
-    desc: 'Admin-provisioned login system with JWT authentication for maximum privacy.',
-  },
-];
+import { 
+  Loader2, ArrowRight, MessageSquare, 
+  Phone, Server, Shield, Code, BarChart, Mail
+} from 'lucide-react';
 
 const AuthPage = () => {
   const { login, user } = useContext(AuthContext);
-  const navigate = useNavigate(); // 🔥 রিডাইরেক্ট করার হুক
+  const navigate = useNavigate();
 
-  const [email,    setEmail]    = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error,    setError]    = useState('');
-  const [loading,  setLoading]  = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
 
-  // যদি ইউজার আগে থেকেই লগইন করা থাকে, তবে সরাসরি ড্যাশবোর্ডে পাঠিয়ে দেবে
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
-    }
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (user) navigate('/dashboard');
   }, [user, navigate]);
 
   const handleSubmit = async (e) => {
@@ -40,134 +32,222 @@ const AuthPage = () => {
     setLoading(true);
     try {
       await login(email, password);
-      // 🔥 লগইন সাকসেস হলে ড্যাশবোর্ডে ধাক্কা দিয়ে পাঠিয়ে দেবে!
-      navigate('/dashboard'); 
+      navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.error || 'Invalid credentials or account suspended.');
+      setError(err.response?.data?.error || 'Authentication failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f5f3] flex items-center justify-center p-4">
-      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-[0_24px_80px_-12px_rgba(0,0,0,0.12)] overflow-hidden flex flex-col lg:flex-row border border-gray-100">
+    <div className="min-h-screen bg-[#000000] text-zinc-300 font-sans selection:bg-zinc-800 selection:text-white">
+      
+      {/* ── Minimalist Grid Background ── */}
+      <div className="fixed inset-0 pointer-events-none bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
 
-        {/* ── Left Panel ── */}
-        <div className="lg:w-5/12 relative bg-gray-950 p-10 lg:p-14 flex flex-col justify-between overflow-hidden">
-          {/* Decorative blobs */}
-          <div className="absolute -top-32 -left-32 w-72 h-72 bg-purple-600 rounded-full blur-[96px] opacity-20 pointer-events-none" />
-          <div className="absolute -bottom-32 -right-32 w-72 h-72 bg-indigo-600 rounded-full blur-[96px] opacity-15 pointer-events-none" />
-
-          {/* Logo */}
-          <div className="relative z-10 flex items-center gap-3">
-            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-gray-950 font-black text-lg leading-none">T</span>
+      {/* ── Navbar ── */}
+      <nav className={`fixed top-0 left-0 w-full z-50 transition-all duration-200 border-b ${
+        isScrolled ? 'bg-black/70 backdrop-blur-md border-zinc-800 py-4' : 'bg-transparent border-transparent py-6'
+      }`}>
+        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-white text-black flex items-center justify-center font-bold text-lg rounded-sm">
+              T
             </div>
-            <span className="text-white font-black text-lg tracking-tight">Thirdwave CRM</span>
+            <span className="font-semibold text-white tracking-tight">Thirdwave Future Tech</span>
           </div>
 
-          {/* Headline + features */}
-          <div className="relative z-10 mt-12 lg:mt-0">
-            <h1 className="text-3xl lg:text-4xl font-black text-white leading-tight mb-2">
-              Your Business's
-            </h1>
-            <h1 className="text-3xl lg:text-4xl font-black text-purple-400 leading-tight mb-10">
-              Smart AI Assistant
-            </h1>
-
-            <div className="space-y-7">
-              {FEATURES.map(({ icon: Icon, color, title, desc }) => (
-                <div key={title} className="flex items-start gap-4">
-                  <div className="shrink-0 w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                    <Icon className={`w-5 h-5 ${color}`} />
-                  </div>
-                  <div>
-                    <p className="text-white font-bold text-sm">{title}</p>
-                    <p className="text-gray-400 text-xs mt-1 leading-relaxed">{desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-400">
+            <a href="#features" className="hover:text-white transition-colors">Features</a>
+            <a href="#founder" className="hover:text-white transition-colors">Vision</a>
           </div>
 
-          {/* Footer tag */}
-          <p className="relative z-10 text-xs text-gray-600 font-medium mt-12 lg:mt-0">
-            Powered by Thirdwave AI
-A Vision by Talha Belal
-Redefining E-Commerce in Bangladesh 
-          </p>
+          <div className="flex items-center gap-5">
+            <a href="mailto:talhabelal10@gmail.com" className="hidden md:flex items-center gap-2 text-sm font-medium text-zinc-400 hover:text-white transition-colors">
+              <Mail className="w-4 h-4" />
+              Support
+            </a>
+            <a href="tel:01987573397" className="flex items-center gap-2 text-sm font-medium text-white bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg hover:bg-zinc-800 transition-colors">
+              <Phone className="w-4 h-4" />
+              01987573397
+            </a>
+          </div>
         </div>
+      </nav>
 
-        {/* ── Right Panel ── */}
-        <div className="lg:w-7/12 p-10 lg:p-16 flex flex-col justify-center bg-white">
-          <div className="max-w-sm w-full mx-auto">
+      {/* ── Hero & Auth Section ── */}
+      <main className="relative pt-32 pb-24 border-b border-zinc-900">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col lg:flex-row items-center gap-16 lg:gap-24">
+          
+          {/* Copywriting Area */}
+          <div className="w-full lg:w-1/2 relative z-10">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-800 bg-zinc-900/50 mb-8">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+              <span className="text-xs font-medium text-zinc-300">v2.0 Core Active</span>
+            </div>
+            
+            <h1 className="text-4xl lg:text-6xl font-semibold text-white leading-[1.1] tracking-tight mb-6">
+              Commerce infrastructure <br className="hidden lg:block"/>
+              built for scale.
+            </h1>
+            
+            <p className="text-lg text-zinc-400 leading-relaxed mb-8 max-w-md">
+              A highly optimized CRM and automation engine. Manage Facebook interactions, analyze Meta ROAS, and streamline your entire digital operation from one dashboard.
+            </p>
 
-            <div className="mb-10">
-              <h2 className="text-2xl font-black text-gray-900 tracking-tight">Welcome back</h2>
-              <p className="text-gray-400 text-sm mt-1.5 font-medium">
-                Sign in with your assigned credentials.
+            <div className="flex flex-col gap-3 text-sm text-zinc-500 font-medium">
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-zinc-400" />
+                End-to-end encrypted sessions
+              </div>
+              <div className="flex items-center gap-2">
+                <Server className="w-4 h-4 text-zinc-400" />
+                Vercel Edge Network deployment
+              </div>
+            </div>
+          </div>
+
+          {/* Minimalist Login Card */}
+          <div className="w-full lg:w-1/2 max-w-md mx-auto lg:mx-0 relative z-10">
+            <div className="bg-[#0A0A0A] border border-zinc-800 rounded-xl p-8 shadow-2xl">
+              <h2 className="text-xl font-semibold text-white mb-1">Sign in</h2>
+              <p className="text-sm text-zinc-500 mb-8">Continue to your workspace</p>
+
+              {error && (
+                <div className="mb-6 px-4 py-3 bg-red-950/30 border border-red-900/50 rounded-lg text-red-400 text-sm">
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-zinc-400">Work Email</label>
+                  <input
+                    required
+                    type="email"
+                    placeholder="name@company.com"
+                    className="w-full px-4 py-3 bg-[#111111] border border-zinc-800 rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 transition-all"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <label className="text-sm font-medium text-zinc-400">Password</label>
+                  </div>
+                  <input
+                    required
+                    type="password"
+                    placeholder="••••••••"
+                    className="w-full px-4 py-3 bg-[#111111] border border-zinc-800 rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 transition-all"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full mt-6 flex items-center justify-center gap-2 py-3 bg-white text-black text-sm font-semibold rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-50"
+                >
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>Login to Dashboard <ArrowRight className="w-4 h-4" /></>
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
+
+        </div>
+      </main>
+
+      {/* ── Technical Features (Linear Style) ── */}
+      <section id="features" className="py-24 border-b border-zinc-900 bg-[#050505]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <div className="p-6 border border-zinc-800 rounded-xl bg-[#0A0A0A] hover:border-zinc-700 transition-colors">
+              <MessageSquare className="w-5 h-5 text-white mb-4" />
+              <h3 className="text-white font-medium mb-2">Automated Inbox</h3>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                Connect your Meta webhooks directly. Our AI processes customer inquiries instantly, reducing manual support hours by 80%.
               </p>
             </div>
 
-            {/* Error */}
-            {error && (
-              <div className="mb-6 flex items-start gap-3 px-4 py-3.5 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-semibold">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{error}</span>
-              </div>
-            )}
+            <div className="p-6 border border-zinc-800 rounded-xl bg-[#0A0A0A] hover:border-zinc-700 transition-colors">
+              <BarChart className="w-5 h-5 text-white mb-4" />
+              <h3 className="text-white font-medium mb-2">Centralized Analytics</h3>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                Track precise ad spend, customer acquisition costs, and real-time revenue metrics without switching between platforms.
+              </p>
+            </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">
-                  Email Address
-                </label>
-                <input
-                  required
-                  type="email"
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 placeholder-gray-400 outline-none focus:border-gray-900 focus:bg-white transition-all"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                />
-              </div>
+            <div className="p-6 border border-zinc-800 rounded-xl bg-[#0A0A0A] hover:border-zinc-700 transition-colors">
+              <Code className="w-5 h-5 text-white mb-4" />
+              <h3 className="text-white font-medium mb-2">Zero Third-Party Bloat</h3>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                No slow website builders. Engineered purely with custom React and Next.js for sub-second load times and absolute data control.
+              </p>
+            </div>
 
-              <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">
-                  Password
-                </label>
-                <input
-                  required
-                  type="password"
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 placeholder-gray-400 outline-none focus:border-gray-900 focus:bg-white transition-all"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full mt-2 flex items-center justify-center gap-2.5 py-4 bg-gray-950 text-white text-sm font-black rounded-xl tracking-wide hover:bg-black active:scale-[0.98] transition-all shadow-lg shadow-gray-900/20 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {loading
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Authenticating...</>
-                  : <><span>Sign In</span><ArrowRight className="w-4 h-4" /></>
-                }
-              </button>
-            </form>
-
-            <p className="text-center text-xs text-gray-400 font-medium mt-8">
-              Access is restricted to admin-provisioned accounts only.
-            </p>
           </div>
         </div>
+      </section>
 
-      </div>
+      {/* ── Authentic Founder Story ── */}
+      <section id="founder" className="py-32 border-b border-zinc-900">
+        <div className="max-w-4xl mx-auto px-6">
+          <div className="border-l-2 border-zinc-800 pl-8 lg:pl-12">
+            <h2 className="text-2xl font-semibold text-white mb-8">
+              Built from actual operational bottlenecks.
+            </h2>
+            <div className="space-y-6 text-zinc-400 text-lg leading-relaxed">
+              <p>
+                "While scaling Aurelian, I realized that handling hundreds of customer messages manually wasn't just tedious—it was actively hindering our growth. Marketing campaigns would drive traffic, but the operational bottleneck of customer service meant we were leaving money on the table."
+              </p>
+              <p>
+                "Thirdwave Future Tech wasn't built as a theoretical software project. It was coded from necessity. We bypassed generic third-party platforms to build a custom architecture that directly solves the operational pain points of modern e-commerce."
+              </p>
+            </div>
+            
+            <div className="mt-12 flex items-center gap-4">
+              <div className="w-12 h-12 bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center text-white font-semibold">
+                TB
+              </div>
+              <div>
+                <p className="text-white font-medium">Talha Belal</p>
+                <p className="text-sm text-zinc-500">Founder & MD</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Minimalist Footer ── */}
+      <footer className="py-12 bg-black">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 bg-white text-black flex items-center justify-center font-bold text-xs rounded-sm">
+              T
+            </div>
+            <span className="text-sm font-semibold text-zinc-400">Thirdwave Future Tech</span>
+          </div>
+          
+          <div className="flex items-center gap-6 text-sm text-zinc-500">
+            <a href="mailto:talhabelal10@gmail.com" className="hover:text-white transition-colors flex items-center gap-2">
+              <Mail className="w-4 h-4" /> talhabelal10@gmail.com
+            </a>
+            <a href="tel:01987573397" className="hover:text-white transition-colors flex items-center gap-2">
+              <Phone className="w-4 h-4" /> 01987573397
+            </a>
+          </div>
+        </div>
+      </footer>
+
     </div>
   );
 };
