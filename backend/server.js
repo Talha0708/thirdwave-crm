@@ -1,6 +1,6 @@
 /**
  * ============================================================
- * THIRDWAVE SAAS — Master Backend Server (Enterprise Scale)
+ * THIRDWAVE SAAS — Master Backend Server (Vercel Serverless Optimized)
  * Architecture: Meta Webhook + WhatsApp Cloud API + Gemini AI + Multi-Item Cart
  * ============================================================
  */
@@ -78,29 +78,31 @@ app.use(express.json({ limit: '1mb' }));
 app.use('/api/', rateLimit({ windowMs: 60_000, max: 200, standardHeaders: true, legacyHeaders: false }));
 
 // ══════════════════════════════════════════════════════════════
-//  2. Database Connection
+//  2. Database Connection (Serverless Ready)
 // ══════════════════════════════════════════════════════════════
+let isConnected = false;
 async function connectDB() {
+    if (isConnected) return;
     try {
         await mongoose.connect(process.env.MONGO_URI, {
             family: 4,
             serverSelectionTimeoutMS: 15_000,
             socketTimeoutMS:          45_000,
         });
-        console.log('✅ MongoDB Connected (SaaS Ready - Encrypted)');
+        isConnected = true;
+        console.log('✅ MongoDB Connected (Serverless Ready)');
         await Shop.collection.createIndex({ metaPageId: 1 }, { background: true });
         await Shop.collection.createIndex({ whatsappPhoneNumberId: 1 }, { background: true });
     } catch (err) {
         console.error('❌ DB Connection Error:', err.message);
-        process.exit(1); 
     }
 }
-connectDB();
 
 // ══════════════════════════════════════════════════════════════
 //  3. Auth & Role Middlewares
 // ══════════════════════════════════════════════════════════════
 const authMiddleware = async (req, res, next) => {
+    await connectDB();
     try {
         const token = req.headers.authorization?.split(' ')[1];
         if (!token) return res.status(401).json({ error: 'Access denied' });
@@ -125,9 +127,10 @@ const adminMiddleware = (req, res, next) => {
 };
 
 // ══════════════════════════════════════════════════════════════
-//  4. Authentication Route
+//  4. API Routes (Auth, Admin, Shop, Products, Orders)
 // ══════════════════════════════════════════════════════════════
 app.post('/api/auth/login', async (req, res) => {
+    await connectDB();
     try {
         const { email, password } = req.body;
         if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
@@ -142,32 +145,22 @@ app.post('/api/auth/login', async (req, res) => {
         if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
         if (!user.isActive) return res.status(403).json({ error: 'Account suspended by admin' });
 
-        const token = jwt.sign(
-            { id: user._id, role: user.role },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-        );
-
-        console.log('✅ Login success:', email);
+        const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
         res.json({ token, user: { name: user.name, email: user.email, role: user.role } });
     } catch (err) {
         res.status(500).json({ error: 'Server error during login' });
     }
 });
 
-// ══════════════════════════════════════════════════════════════
-//  5. Super Admin Routes
-// ══════════════════════════════════════════════════════════════
+// Admin Routes
 app.post('/api/admin/create-client', authMiddleware, adminMiddleware, async (req, res) => {
     try {
         const { name, email, password, shopName, plan } = req.body;
         const existing = await User.findOne({ email }).lean();
         if (existing) return res.status(409).json({ error: 'Email already registered' });
-
         const hashedPassword = await bcrypt.hash(password, 10);
         const user = await User.create({ name, email, password: hashedPassword });
         await Shop.create({ userId: user._id, shopName, plan: plan || 'Starter' });
-
         res.status(201).json({ message: 'Client created successfully' });
     } catch (err) {
         res.status(400).json({ error: 'Failed to create client', details: err.message });
@@ -190,7 +183,6 @@ app.put('/api/admin/shops/:id/subscription', authMiddleware, adminMiddleware, as
     try {
         const { action, newPlan } = req.body;
         const shop = await Shop.findById(req.params.id);
-
         if (action === 'UPGRADE') {
             shop.plan = newPlan;
             shop.monthlyMessageCount = 0;
@@ -199,7 +191,6 @@ app.put('/api/admin/shops/:id/subscription', authMiddleware, adminMiddleware, as
             shop.monthlyMessageCount = 0;
             shop.resetDate = new Date();
         }
-
         await shop.save();
         res.json({ message: `Shop updated: ${action}`, shop });
     } catch (err) {
@@ -221,23 +212,16 @@ app.get('/api/admin/shops', authMiddleware, adminMiddleware, async (req, res) =>
     res.json(shops);
 });
 
-// ══════════════════════════════════════════════════════════════
-//  6. Client Dashboard & Integration Routes
-// ══════════════════════════════════════════════════════════════
+// Shop Settings & Configurations
 app.get('/api/shop/config', authMiddleware, async (req, res) => {
     try {
         const shop = await Shop.findById(req.shopId).lean();
         res.json({
-            isAIActive:   shop.isAIActive,
-            systemPrompt: shop.systemPrompt,
-            metaPageId:   shop.metaPageId,
-            whatsappPhoneNumberId: shop.whatsappPhoneNumberId,
-            plan:         shop.plan,
-            usage:        shop.monthlyMessageCount,
+            isAIActive: shop.isAIActive, systemPrompt: shop.systemPrompt,
+            metaPageId: shop.metaPageId, whatsappPhoneNumberId: shop.whatsappPhoneNumberId,
+            plan: shop.plan, usage: shop.monthlyMessageCount,
         });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to fetch config' });
-    }
+    } catch (err) { res.status(500).json({ error: 'Failed to fetch config' }); }
 });
 
 app.put('/api/shop/config', authMiddleware, async (req, res) => {
@@ -246,48 +230,29 @@ app.put('/api/shop/config', authMiddleware, async (req, res) => {
         const update = {};
         if (typeof isAIActive !== 'undefined') update.isAIActive = isAIActive;
         if (typeof systemPrompt !== 'undefined') update.systemPrompt = systemPrompt;
-
         const shop = await Shop.findByIdAndUpdate(req.shopId, update, { new: true }).lean();
         res.json(shop);
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to update config' });
-    }
+    } catch (err) { res.status(500).json({ error: 'Failed to update config' }); }
 });
 
 app.put('/api/shop/manual-facebook', authMiddleware, async (req, res) => {
     try {
         const { metaPageId, metaAccessToken } = req.body;
         if (!metaPageId || !metaAccessToken) return res.status(400).json({ error: 'Page ID and Access Token are required' });
-        
         const encryptedToken = encryptToken(metaAccessToken.trim());
-        await Shop.findByIdAndUpdate(
-            req.shopId, 
-            { metaPageId: metaPageId.trim(), metaAccessToken: encryptedToken, isAIActive: true }, 
-            { new: true }
-        ).lean();
-
+        await Shop.findByIdAndUpdate(req.shopId, { metaPageId: metaPageId.trim(), metaAccessToken: encryptedToken, isAIActive: true }, { new: true }).lean();
         res.json({ message: 'Manual Facebook Integration Successful!' });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to save manual token' });
-    }
+    } catch (err) { res.status(500).json({ error: 'Failed to save manual token' }); }
 });
 
 app.put('/api/shop/manual-whatsapp', authMiddleware, async (req, res) => {
     try {
         const { whatsappPhoneNumberId, whatsappAccessToken } = req.body;
         if (!whatsappPhoneNumberId || !whatsappAccessToken) return res.status(400).json({ error: 'Phone Number ID and Access Token are required' });
-        
         const encryptedToken = encryptToken(whatsappAccessToken.trim());
-        await Shop.findByIdAndUpdate(
-            req.shopId, 
-            { whatsappPhoneNumberId: whatsappPhoneNumberId.trim(), whatsappAccessToken: encryptedToken, isAIActive: true }, 
-            { new: true }
-        ).lean();
-
+        await Shop.findByIdAndUpdate(req.shopId, { whatsappPhoneNumberId: whatsappPhoneNumberId.trim(), whatsappAccessToken: encryptedToken, isAIActive: true }, { new: true }).lean();
         res.json({ message: 'WhatsApp Integration Successful!' });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to save WhatsApp token' });
-    }
+    } catch (err) { res.status(500).json({ error: 'Failed to save WhatsApp token' }); }
 });
 
 // Products & Orders
@@ -324,9 +289,9 @@ app.get('/api/analytics', authMiddleware, async (req, res) => {
 //  7. AI Engine Logic (Gemini 3.1 Flash-Lite)
 // ══════════════════════════════════════════════════════════════
 const PLAN_LIMITS = {
-    Starter:    { rpm: 5,  maxMessages: 3_000   },
-    Business:   { rpm: 10, maxMessages: 8_000   },
-    Enterprise: { rpm: 10, maxMessages: 999_999 },
+    Starter:    { rpm: 20, maxMessages: 3_000   }, // Increased RPM for stability
+    Business:   { rpm: 40, maxMessages: 8_000   },
+    Enterprise: { rpm: 60, maxMessages: 999_999 },
 };
 
 const shopRPMTracker = Object.create(null);
@@ -335,7 +300,6 @@ const messageQueue = [];
 function canProcessShopRPM(shopId, planRpm) {
     const id  = shopId.toString();
     const now = Date.now();
-
     if (!shopRPMTracker[id]) shopRPMTracker[id] = { count: 0, windowStart: now };
     const tracker = shopRPMTracker[id];
 
@@ -343,7 +307,6 @@ function canProcessShopRPM(shopId, planRpm) {
         tracker.windowStart = now;
         tracker.count = 0;
     }
-
     if (tracker.count >= planRpm) return false;
     tracker.count++;
     return true;
@@ -361,7 +324,7 @@ async function getAurelianResponse(shop, psid, text, imgUrl = null, isFromQueue 
         return 'আপনার পেজের মাসিক অটো-রিপ্লাই লিমিট শেষ হয়েছে। দয়া করে থার্ডওয়েভ CRM থেকে প্যাকেজ আপগ্রেড করুন। 🙏';
     }
 
-   const model = genAI.getGenerativeModel({
+    const model = genAI.getGenerativeModel({
         model: 'gemini-3.1-flash-lite', 
         systemInstruction: shop.systemPrompt,
     });
@@ -530,7 +493,7 @@ setInterval(async () => {
 }, 5_000);
 
 // ══════════════════════════════════════════════════════════════
-//  9. Multi-Tenant Webhook (Facebook Messenger)
+//  9. Multi-Tenant Webhook (Facebook Messenger) - FIXED FOR VERCEL
 // ══════════════════════════════════════════════════════════════
 app.get('/webhook', (req, res) => {
     if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === process.env.META_VERIFY_TOKEN) {
@@ -540,33 +503,35 @@ app.get('/webhook', (req, res) => {
 });
 
 app.post('/webhook', async (req, res) => {
-    res.sendStatus(200); 
-    const body = req.body;
-    console.log('\n🔔 FB WEBHOOK HIT! Facebook is sending data...');
-
-    if (body.object !== 'page') return;
-
+    // ⚠️ NO res.sendStatus(200) HERE anymore! Vercel needs to wait.
+    await connectDB();
+    
     try {
+        const body = req.body;
+        console.log('\n🔔 FB WEBHOOK HIT! Facebook is sending data...');
+
+        if (body.object !== 'page') return res.status(200).send('EVENT_RECEIVED');
+
         const pageId = body.entry?.[0]?.id;
         const shop = await Shop.findOne({ metaPageId: pageId });
 
-        if (!shop || !shop.isAIActive) return;
+        if (!shop || !shop.isAIActive) return res.status(200).send('EVENT_RECEIVED');
 
         const messaging = body.entry?.[0]?.messaging?.[0];
-        if (!messaging) return;
+        if (!messaging) return res.status(200).send('EVENT_RECEIVED');
 
         const psid   = messaging.sender?.id;
         const text   = messaging.message?.text;
         const imgUrl = messaging.message?.attachments?.[0]?.payload?.url;
         
-        if (!psid || (!text && !imgUrl)) return;
+        if (!psid || (!text && !imgUrl)) return res.status(200).send('EVENT_RECEIVED');
 
         const aiResponse = await getAurelianResponse(shop, psid, text, imgUrl);
         
         if (aiResponse === 'QUEUED') {
             console.log('⏳ Message Queued due to Rate Limit...');
             messageQueue.push({ shopId: shop._id, psid, text, imgUrl, platform: 'facebook' });
-            return;
+            return res.status(200).send('EVENT_RECEIVED'); // Return 200 so FB doesn't retry
         }
 
         const cleanMessage = aiResponse.replace(SYNC_RE, '').trim();
@@ -580,11 +545,17 @@ app.post('/webhook', async (req, res) => {
         
         console.log('✅ FB AI Reply Sent Successfully!');
         await processOrderSync(shop, aiResponse);
-    } catch (err) { console.error('❌ FB Webhook error:', err.message); }
+        
+        // VERCEL FIX: Send 200 OK AT THE VERY END so server doesn't sleep early!
+        return res.status(200).send('EVENT_RECEIVED');
+    } catch (err) { 
+        console.error('❌ FB Webhook error:', err.message); 
+        return res.status(200).send('EVENT_RECEIVED'); // Always return 200 so FB doesn't block the webhook
+    }
 });
 
 // ══════════════════════════════════════════════════════════════
-//  10. Multi-Tenant Webhook (WhatsApp Cloud API)
+//  10. Multi-Tenant Webhook (WhatsApp Cloud API) - FIXED FOR VERCEL
 // ══════════════════════════════════════════════════════════════
 app.get('/webhook/whatsapp', (req, res) => {
     if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === process.env.META_VERIFY_TOKEN) {
@@ -594,34 +565,36 @@ app.get('/webhook/whatsapp', (req, res) => {
 });
 
 app.post('/webhook/whatsapp', async (req, res) => {
-    res.sendStatus(200);
-    const body = req.body;
-    console.log('\n📱 WHATSAPP WEBHOOK HIT!');
-
-    if (body.object !== 'whatsapp_business_account') return;
-
+    // ⚠️ NO res.sendStatus(200) HERE anymore! Vercel needs to wait.
+    await connectDB();
+    
     try {
+        const body = req.body;
+        console.log('\n📱 WHATSAPP WEBHOOK HIT!');
+
+        if (body.object !== 'whatsapp_business_account') return res.status(200).send('EVENT_RECEIVED');
+
         const entry = body.entry?.[0];
         const changes = entry?.changes?.[0]?.value;
-        if (!changes || !changes.messages || !changes.messages[0]) return;
+        if (!changes || !changes.messages || !changes.messages[0]) return res.status(200).send('EVENT_RECEIVED');
 
         const phoneNumberId = changes.metadata.phone_number_id;
         const message = changes.messages[0];
         const fromNumber = message.from; 
         
         const shop = await Shop.findOne({ whatsappPhoneNumberId: phoneNumberId });
-        if (!shop || !shop.isAIActive) return;
+        if (!shop || !shop.isAIActive) return res.status(200).send('EVENT_RECEIVED');
 
         let text = '';
         if (message.type === 'text') text = message.text.body;
-        if (!text) return; // Images not fully handled for WA in this version
+        if (!text) return res.status(200).send('EVENT_RECEIVED');
 
         const aiResponse = await getAurelianResponse(shop, fromNumber, text);
         
         if (aiResponse === 'QUEUED') {
             console.log('⏳ WA Message Queued due to Rate Limit...');
             messageQueue.push({ shopId: shop._id, psid: fromNumber, text, platform: 'whatsapp' });
-            return;
+            return res.status(200).send('EVENT_RECEIVED');
         }
 
         const cleanMessage = aiResponse.replace(SYNC_RE, '').trim();
@@ -645,7 +618,13 @@ app.post('/webhook/whatsapp', async (req, res) => {
         
         console.log('✅ WA AI Reply Sent Successfully!');
         await processOrderSync(shop, aiResponse);
-    } catch (err) { console.error('❌ WA Webhook error:', err.message); }
+        
+        // VERCEL FIX: Send 200 OK AT THE VERY END so server doesn't sleep early!
+        return res.status(200).send('EVENT_RECEIVED');
+    } catch (err) { 
+        console.error('❌ WA Webhook error:', err.message); 
+        return res.status(200).send('EVENT_RECEIVED');
+    }
 });
 
 // ══════════════════════════════════════════════════════════════
