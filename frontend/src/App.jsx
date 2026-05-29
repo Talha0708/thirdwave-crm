@@ -245,23 +245,21 @@ const SuperAdminView = ({ showMessage }) => {
           <form onSubmit={handleCreateClient} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField label="Owner Name">
-                <input required type="text" className="form-input" value={clientData.name} onChange={e => setClientData({ ...clientData, name: e.target.value })} />
+                <input required type="text" className="form-input" value={clientData.name || ''} onChange={e => setClientData({ ...clientData, name: e.target.value })} />
               </FormField>
               <FormField label="Workspace ID (Shop Name)">
-                <input required type="text" className="form-input" value={clientData.shopName} onChange={e => setClientData({ ...clientData, shopName: e.target.value })} />
+                <input required type="text" className="form-input" value={clientData.shopName || ''} onChange={e => setClientData({ ...clientData, shopName: e.target.value })} />
               </FormField>
             </div>
             <FormField label="Root Email">
-              <input required type="email" className="form-input" value={clientData.email} onChange={e => setClientData({ ...clientData, email: e.target.value })} />
+              <input required type="email" className="form-input" value={clientData.email || ''} onChange={e => setClientData({ ...clientData, email: e.target.value })} />
             </FormField>
             <FormField label="Access Key (Password)">
-              <input required type="text" className="form-input font-mono" value={clientData.password} onChange={e => setClientData({ ...clientData, password: e.target.value })} />
+              <input required type="text" className="form-input font-mono" value={clientData.password || ''} onChange={e => setClientData({ ...clientData, password: e.target.value })} />
             </FormField>
             <FormField label="Compute Tier">
-              <select className="form-input" value={clientData.plan} onChange={e => setClientData({ ...clientData, plan: e.target.value })}>
-                {Object.entries(PLAN_LABELS).map(([k, v]) => (
-                  <option key={k} value={k} className="bg-[#111]">{k} ({v.price} / {v.desc})</option>
-                ))}
+              <select className="form-input" value={clientData.plan || 'Starter'} onChange={e => setClientData({ ...clientData, plan: e.target.value })}>
+                {Object.entries(PLAN_LABELS).map(([k, v]) => <option key={k} value={k} className="bg-[#111]">{k} ({v.price} / {v.desc})</option>)}
               </select>
             </FormField>
             <div className="pt-4">
@@ -280,9 +278,6 @@ const SuperAdminView = ({ showMessage }) => {
               <div>
                 <p className="font-medium text-zinc-200">{selectedShop.shopName}</p>
                 <p className="text-xs text-zinc-500 mt-1 font-mono">{selectedShop.plan} &bull; {selectedShop.monthlyMessageCount.toLocaleString()} reqs</p>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                <Settings className="w-4 h-4 text-zinc-400" />
               </div>
             </div>
             <div className="space-y-3">
@@ -347,7 +342,7 @@ const DashboardView = ({ showMessage }) => {
 };
 
 // ══════════════════════════════════════════════════════════════
-//  Orders View (Cart Display)
+//  Orders View
 // ══════════════════════════════════════════════════════════════
 const STATUS_STYLES = {
   Pending:   'text-amber-400 bg-amber-400/10 border-amber-400/20',
@@ -386,7 +381,7 @@ const OrdersView = ({ showMessage }) => {
       </div>
       <div className="bg-[#0A0A0A] rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="border-b border-white/5 bg-white/[0.02]">
                 {['Client', 'Payload', 'Destination', 'Value', 'State'].map(h => (
@@ -449,7 +444,7 @@ const OrdersView = ({ showMessage }) => {
 };
 
 // ══════════════════════════════════════════════════════════════
-//  Inventory View (Multi-Size Support & Loading)
+//  Inventory View (Multi-Size Support & Ultra Safe)
 // ══════════════════════════════════════════════════════════════
 const InventoryView = ({ showMessage }) => {
   const [products, setProducts]       = useState([]);
@@ -461,6 +456,7 @@ const InventoryView = ({ showMessage }) => {
   const [isEditing, setIsEditing]     = useState(false);
   const [editId, setEditId]           = useState(null);
   
+  // 🔥 Safe initial state
   const [formData, setFormData]       = useState({ name: '', code: '', price: '', sizes: [], color: '' });
 
   const loadProducts = useCallback(async () => {
@@ -501,8 +497,18 @@ const InventoryView = ({ showMessage }) => {
   const handleEditClick = (p) => {
     setIsEditing(true);
     setEditId(p._id);
+    
+    // 🔥 Ultra safe size array parsing to prevent crashes
     const currentSizes = p.sizes && Array.isArray(p.sizes) ? p.sizes : (p.size ? [p.size] : []);
-    setFormData({ name: p.name, code: p.code, price: p.price, sizes: currentSizes, color: p.color || '' });
+    
+    setFormData({ 
+      name: p.name || '', 
+      code: p.code || '', 
+      price: p.price || '', 
+      sizes: currentSizes, 
+      color: p.color || '' 
+    });
+    
     setShowModal(true);
   };
 
@@ -529,11 +535,13 @@ const InventoryView = ({ showMessage }) => {
 
   const handleSizeToggle = (sz) => {
     setFormData(prev => {
-      const isExist = prev.sizes.includes(sz);
+      // 🔥 Safe check to prevent undefined crash
+      const currentSizes = prev.sizes || [];
+      const isExist = currentSizes.includes(sz);
       if (isExist) {
-        return { ...prev, sizes: prev.sizes.filter(s => s !== sz) };
+        return { ...prev, sizes: currentSizes.filter(s => s !== sz) };
       } else {
-        return { ...prev, sizes: [...prev.sizes, sz] };
+        return { ...prev, sizes: [...currentSizes, sz] };
       }
     });
   };
@@ -616,17 +624,19 @@ const InventoryView = ({ showMessage }) => {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="grid grid-cols-2 gap-4">
               <FormField label="Unique ID / SKU Code">
-                <input required type="text" className="form-input font-mono uppercase" placeholder="e.g. 101" value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} />
+                {/* 🔥 Safe inputs with || '' to prevent uncontrolled input errors */}
+                <input required type="text" className="form-input font-mono uppercase" placeholder="e.g. 101" value={formData.code || ''} onChange={e => setFormData({ ...formData, code: e.target.value })} />
               </FormField>
               <FormField label="Descriptor (Name)">
-                <input required type="text" className="form-input" placeholder="e.g. Premium Kurta" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                <input required type="text" className="form-input" placeholder="e.g. Premium Kurta" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
               </FormField>
             </div>
             
             <FormField label="Scale Configuration (Select Available Sizes)">
               <div className="grid grid-cols-4 gap-2 mt-2 bg-white/[0.01] border border-white/5 p-3 rounded-xl">
                 {AVAILABLE_SIZES.map(sz => {
-                  const isSelected = formData.sizes.includes(sz);
+                  // 🔥 Safe Array parsing
+                  const isSelected = (formData.sizes || []).includes(sz);
                   return (
                     <button
                       key={sz}
@@ -650,10 +660,10 @@ const InventoryView = ({ showMessage }) => {
 
             <div className="grid grid-cols-2 gap-4">
               <FormField label="Variant (Color)">
-                <input type="text" className="form-input" placeholder="e.g. Black" value={formData.color} onChange={e => setFormData({ ...formData, color: e.target.value })} />
+                <input type="text" className="form-input" placeholder="e.g. Black" value={formData.color || ''} onChange={e => setFormData({ ...formData, color: e.target.value })} />
               </FormField>
               <FormField label="Integer Value (৳)">
-                <input required type="number" min="0" className="form-input font-mono" placeholder="799" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} />
+                <input required type="number" min="0" className="form-input font-mono" placeholder="799" value={formData.price || ''} onChange={e => setFormData({ ...formData, price: e.target.value })} />
               </FormField>
             </div>
             
