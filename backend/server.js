@@ -26,6 +26,10 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { User, Shop, Product, Order, ChatHistory } = require('./models');
 
 const app = express();
+
+// ✅ FIX 1: Trust Vercel's proxy so X-Forwarded-For is read correctly
+app.set('trust proxy', 1);
+
 app.use(helmet());
 
 // ══════════════════════════════════════════════════════════════
@@ -56,7 +60,7 @@ function decryptToken(hash) {
         return decrypted;
     } catch (e) {
         console.error('❌ Decryption failed:', e.message);
-        return hash; 
+        return hash;
     }
 }
 
@@ -75,7 +79,22 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '1mb' }));
-app.use('/api/', rateLimit({ windowMs: 60_000, max: 200, standardHeaders: true, legacyHeaders: false }));
+
+// ✅ FIX 2: Custom keyGenerator to properly use X-Forwarded-For on Vercel
+app.use('/api/', rateLimit({
+    windowMs: 60_000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+        return (
+            req.headers['x-forwarded-for']?.split(',')[0].trim() ||
+            req.headers['x-real-ip'] ||
+            req.socket?.remoteAddress ||
+            'unknown'
+        );
+    },
+}));
 
 // ══════════════════════════════════════════════════════════════
 //  2. Database Connection (Serverless Ready)
@@ -289,7 +308,7 @@ app.get('/api/analytics', authMiddleware, async (req, res) => {
 //  7. AI Engine Logic (Gemini 3.1 Flash-Lite)
 // ══════════════════════════════════════════════════════════════
 const PLAN_LIMITS = {
-    Starter:    { rpm: 20, maxMessages: 3_000   }, // Increased RPM for stability
+    Starter:    { rpm: 20, maxMessages: 3_000   },
     Business:   { rpm: 40, maxMessages: 8_000   },
     Enterprise: { rpm: 60, maxMessages: 999_999 },
 };
@@ -325,7 +344,7 @@ async function getAurelianResponse(shop, psid, text, imgUrl = null, isFromQueue 
     }
 
     const model = genAI.getGenerativeModel({
-        model: 'gemini-3.1-flash-lite', 
+        model: 'gemini-3.1-flash-lite',
         systemInstruction: shop.systemPrompt,
     });
 
@@ -365,11 +384,35 @@ async function getAurelianResponse(shop, psid, text, imgUrl = null, isFromQueue 
         );
 
         return aiText;
-   } catch (err) {
-        console.error('\n🔴 Gemini API Error:', err.message); 
+    } catch (err) {
+        console.error('\n🔴 Gemini API Error:', err.message);
         if (err.message?.includes('429')) return 'বট ব্যস্ত আছে। একটু পর মেসেজ দিন। 🙏';
         return 'টেকনিক্যাল সমস্যা হচ্ছে। একটু পর মেসেজ দিন।';
     }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ✅ FIX 3: Robust JSON repair before parsing SYNC block
+// ══════════════════════════════════════════════════════════════
+function repairJson(raw) {
+    let s = raw.trim();
+
+    // Remove any markdown code fences Gemini might add
+    s = s.replace(/```json|```/g, '').trim();
+
+    // Fix unquoted keys: { name: "x" } → { "name": "x" }
+    s = s.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+
+    // Fix single-quoted string values → double-quoted
+    s = s.replace(/:\s*'([^']*)'/g, ': "$1"');
+
+    // Remove trailing commas before } or ]
+    s = s.replace(/,\s*([}\]])/g, '$1');
+
+    // Remove any control characters that break JSON parsing
+    s = s.replace(/[\x00-\x1F\x7F]/g, ' ');
+
+    return s;
 }
 
 // 🔥 ADVANCED Dynamic Multi-Item Order Sync
@@ -377,11 +420,28 @@ async function processOrderSync(shop, aiResponse) {
     const match = SYNC_RE.exec(aiResponse);
     if (!match) return;
 
+    let rawJson = match[1];
+
     try {
-        const data = JSON.parse(match[1]);
+        // ✅ Try direct parse first; fall back to repair
+        let data;
+        try {
+            data = JSON.parse(rawJson);
+        } catch (_) {
+            console.log('⚠️  Direct JSON parse failed, attempting repair...');
+            const repaired = repairJson(rawJson);
+            try {
+                data = JSON.parse(repaired);
+            } catch (repairErr) {
+                console.error('❌ JSON repair also failed. Raw block:', rawJson);
+                console.error('   Repair error:', repairErr.message);
+                return;
+            }
+        }
+
         const loc  = (data.l || '').toLowerCase();
         const isInsideDhaka = loc.includes('inside') || (loc.includes('dhaka') && !loc.includes('outside'));
-        
+
         const deliveryCharge = isInsideDhaka ? 60 : 120;
         let finalTotal = deliveryCharge;
         const processedItems = [];
@@ -414,7 +474,7 @@ async function processOrderSync(shop, aiResponse) {
         }
 
         if (processedItems.length === 0) {
-            console.log(`⚠️ Order Sync failed: No valid products matched in DB for this shop.`);
+            console.log('⚠️ Order Sync failed: No valid products matched in DB for this shop.');
             return;
         }
 
@@ -429,8 +489,8 @@ async function processOrderSync(shop, aiResponse) {
             totalPrice:       finalTotal,
         });
         console.log(`✅ Multi-Item Order Synced Dynamically! Total: ৳${finalTotal}`);
-    } catch (err) { 
-        console.error('Order sync error:', err.message); 
+    } catch (err) {
+        console.error('Order sync error:', err.message);
     }
 }
 
@@ -442,7 +502,7 @@ setInterval(async () => {
 
     for (let i = 0; i < messageQueue.length; i++) {
         const item = messageQueue[i];
-        
+
         const freshShop = await Shop.findById(item.shopId);
         if (!freshShop || !freshShop.isAIActive) {
             messageQueue.splice(i, 1);
@@ -459,7 +519,7 @@ setInterval(async () => {
 
         try {
             const aiResponse = await getAurelianResponse(freshShop, item.psid, item.text, item.imgUrl, true);
-            if (aiResponse === 'QUEUED') { 
+            if (aiResponse === 'QUEUED') {
                 messageQueue.push(item);
                 continue;
             }
@@ -486,14 +546,14 @@ setInterval(async () => {
                     { params: { access_token: decryptedToken } }
                 );
             }
-            
+
             await processOrderSync(freshShop, aiResponse);
         } catch (err) { console.error('Queue error:', err.message); }
     }
 }, 5_000);
 
 // ══════════════════════════════════════════════════════════════
-//  9. Multi-Tenant Webhook (Facebook Messenger) - FIXED FOR VERCEL
+//  9. Multi-Tenant Webhook (Facebook Messenger)
 // ══════════════════════════════════════════════════════════════
 app.get('/webhook', (req, res) => {
     if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === process.env.META_VERIFY_TOKEN) {
@@ -503,9 +563,8 @@ app.get('/webhook', (req, res) => {
 });
 
 app.post('/webhook', async (req, res) => {
-    // ⚠️ NO res.sendStatus(200) HERE anymore! Vercel needs to wait.
     await connectDB();
-    
+
     try {
         const body = req.body;
         console.log('\n🔔 FB WEBHOOK HIT! Facebook is sending data...');
@@ -523,15 +582,15 @@ app.post('/webhook', async (req, res) => {
         const psid   = messaging.sender?.id;
         const text   = messaging.message?.text;
         const imgUrl = messaging.message?.attachments?.[0]?.payload?.url;
-        
+
         if (!psid || (!text && !imgUrl)) return res.status(200).send('EVENT_RECEIVED');
 
         const aiResponse = await getAurelianResponse(shop, psid, text, imgUrl);
-        
+
         if (aiResponse === 'QUEUED') {
             console.log('⏳ Message Queued due to Rate Limit...');
             messageQueue.push({ shopId: shop._id, psid, text, imgUrl, platform: 'facebook' });
-            return res.status(200).send('EVENT_RECEIVED'); // Return 200 so FB doesn't retry
+            return res.status(200).send('EVENT_RECEIVED');
         }
 
         const cleanMessage = aiResponse.replace(SYNC_RE, '').trim();
@@ -542,20 +601,19 @@ app.post('/webhook', async (req, res) => {
             { recipient: { id: psid }, message: { text: cleanMessage } },
             { params: { access_token: decryptedToken } }
         );
-        
+
         console.log('✅ FB AI Reply Sent Successfully!');
         await processOrderSync(shop, aiResponse);
-        
-        // VERCEL FIX: Send 200 OK AT THE VERY END so server doesn't sleep early!
+
         return res.status(200).send('EVENT_RECEIVED');
-    } catch (err) { 
-        console.error('❌ FB Webhook error:', err.message); 
-        return res.status(200).send('EVENT_RECEIVED'); // Always return 200 so FB doesn't block the webhook
+    } catch (err) {
+        console.error('❌ FB Webhook error:', err.message);
+        return res.status(200).send('EVENT_RECEIVED');
     }
 });
 
 // ══════════════════════════════════════════════════════════════
-//  10. Multi-Tenant Webhook (WhatsApp Cloud API) - FIXED FOR VERCEL
+//  10. Multi-Tenant Webhook (WhatsApp Cloud API)
 // ══════════════════════════════════════════════════════════════
 app.get('/webhook/whatsapp', (req, res) => {
     if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === process.env.META_VERIFY_TOKEN) {
@@ -565,9 +623,8 @@ app.get('/webhook/whatsapp', (req, res) => {
 });
 
 app.post('/webhook/whatsapp', async (req, res) => {
-    // ⚠️ NO res.sendStatus(200) HERE anymore! Vercel needs to wait.
     await connectDB();
-    
+
     try {
         const body = req.body;
         console.log('\n📱 WHATSAPP WEBHOOK HIT!');
@@ -580,8 +637,8 @@ app.post('/webhook/whatsapp', async (req, res) => {
 
         const phoneNumberId = changes.metadata.phone_number_id;
         const message = changes.messages[0];
-        const fromNumber = message.from; 
-        
+        const fromNumber = message.from;
+
         const shop = await Shop.findOne({ whatsappPhoneNumberId: phoneNumberId });
         if (!shop || !shop.isAIActive) return res.status(200).send('EVENT_RECEIVED');
 
@@ -590,7 +647,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
         if (!text) return res.status(200).send('EVENT_RECEIVED');
 
         const aiResponse = await getAurelianResponse(shop, fromNumber, text);
-        
+
         if (aiResponse === 'QUEUED') {
             console.log('⏳ WA Message Queued due to Rate Limit...');
             messageQueue.push({ shopId: shop._id, psid: fromNumber, text, platform: 'whatsapp' });
@@ -615,14 +672,13 @@ app.post('/webhook/whatsapp', async (req, res) => {
                 }
             }
         );
-        
+
         console.log('✅ WA AI Reply Sent Successfully!');
         await processOrderSync(shop, aiResponse);
-        
-        // VERCEL FIX: Send 200 OK AT THE VERY END so server doesn't sleep early!
+
         return res.status(200).send('EVENT_RECEIVED');
-    } catch (err) { 
-        console.error('❌ WA Webhook error:', err.message); 
+    } catch (err) {
+        console.error('❌ WA Webhook error:', err.message);
         return res.status(200).send('EVENT_RECEIVED');
     }
 });
