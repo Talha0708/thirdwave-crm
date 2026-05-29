@@ -125,9 +125,7 @@ const SuperAdminView = ({ showMessage }) => {
     try {
       const res = await api.put(`/admin/shops/${id}/toggle`);
       showMessage(res.data.message, 'success');
-      setShops(prev => prev.map(s =>
-        s._id === id ? { ...s, isActive: res.data.isActive } : s
-      ));
+      setShops(prev => prev.map(s => s._id === id ? { ...s, isActive: res.data.isActive } : s));
     } catch {
       showMessage('Failed to toggle status', 'error');
     }
@@ -165,10 +163,7 @@ const SuperAdminView = ({ showMessage }) => {
           <h1 className="text-3xl font-semibold text-zinc-100 tracking-tight">Command Center</h1>
           <p className="text-sm text-zinc-500 mt-1">Manage infrastructure and deployments</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="bg-white text-black px-5 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-zinc-200 transition-colors"
-        >
+        <button onClick={() => setShowCreate(true)} className="bg-white text-black px-5 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-zinc-200 transition-colors">
           <Plus className="w-4 h-4" /> Provision Workspace
         </button>
       </div>
@@ -220,31 +215,18 @@ const SuperAdminView = ({ showMessage }) => {
                         </div>
                         {limit && (
                           <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${isWarning ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-white shadow-[0_0_10px_rgba(255,255,255,0.3)]'}`}
-                              style={{ width: `${usagePct}%` }}
-                            />
+                            <div className={`h-full rounded-full transition-all ${isWarning ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-white shadow-[0_0_10px_rgba(255,255,255,0.3)]'}`} style={{ width: `${usagePct}%` }} />
                           </div>
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <button
-                          onClick={() => toggleShopStatus(shop._id)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all border ${
-                            shop.isActive
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
-                              : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
-                          }`}
-                        >
+                        <button onClick={() => toggleShopStatus(shop._id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all border ${shop.isActive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${shop.isActive ? 'bg-emerald-400' : 'bg-red-400'}`}></span>
                           {shop.isActive ? 'Active' : 'Suspended'}
                         </button>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => openSubModal(shop)}
-                          className="px-4 py-2 bg-transparent border border-white/10 text-zinc-400 rounded-lg text-xs font-medium hover:bg-white/5 hover:text-white hover:border-white/20 transition-all"
-                        >
+                        <button onClick={() => openSubModal(shop)} className="px-4 py-2 bg-transparent border border-white/10 text-zinc-400 rounded-lg text-xs font-medium hover:bg-white/5 hover:text-white hover:border-white/20 transition-all">
                           Configure
                         </button>
                       </td>
@@ -284,8 +266,7 @@ const SuperAdminView = ({ showMessage }) => {
             </FormField>
             <div className="pt-4">
               <button type="submit" disabled={creating} className="btn-primary w-full justify-center">
-                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                Initialize Deployment
+                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />} Initialize Deployment
               </button>
             </div>
           </form>
@@ -298,15 +279,12 @@ const SuperAdminView = ({ showMessage }) => {
             <div className="p-4 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
               <div>
                 <p className="font-medium text-zinc-200">{selectedShop.shopName}</p>
-                <p className="text-xs text-zinc-500 mt-1 font-mono">
-                  {selectedShop.plan} &bull; {selectedShop.monthlyMessageCount.toLocaleString()} reqs
-                </p>
+                <p className="text-xs text-zinc-500 mt-1 font-mono">{selectedShop.plan} &bull; {selectedShop.monthlyMessageCount.toLocaleString()} reqs</p>
               </div>
               <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
                 <Settings className="w-4 h-4 text-zinc-400" />
               </div>
             </div>
-            
             <div className="space-y-3">
             {[
               { value: 'RENEW',   icon: <RefreshCw className="w-4 h-4 text-zinc-400" />, label: 'Reset Cycle',      desc: 'Zero out current usage counters.' },
@@ -316,29 +294,22 @@ const SuperAdminView = ({ showMessage }) => {
               <label key={opt.value} className={`flex items-start gap-4 p-4 border rounded-xl cursor-pointer transition-all ${selectedAction === opt.value ? 'border-white/40 bg-white/10' : 'border-white/5 hover:border-white/20 hover:bg-white/[0.02]'}`}>
                 <input type="radio" name="action" value={opt.value} checked={selectedAction === opt.value} onChange={e => setSelectedAction(e.target.value)} className="mt-1 w-4 h-4 accent-white bg-transparent border-white/20" />
                 <div>
-                  <div className="flex items-center gap-2 font-medium text-sm text-zinc-200">
-                    {opt.icon} {opt.label}
-                  </div>
+                  <div className="flex items-center gap-2 font-medium text-sm text-zinc-200">{opt.icon} {opt.label}</div>
                   <p className="text-xs text-zinc-500 mt-1">{opt.desc}</p>
                 </div>
               </label>
             ))}
             </div>
-
             {selectedAction === 'UPGRADE' && (
               <div className="animate-in slide-in-from-top-2 duration-200">
                 <select value={newPlan} onChange={e => setNewPlan(e.target.value)} className="form-input">
-                  {Object.entries(PLAN_LABELS).map(([k, v]) => (
-                    <option key={k} value={k} className="bg-[#111]">{k} Tier — {v.price}</option>
-                  ))}
+                  {Object.entries(PLAN_LABELS).map(([k, v]) => <option key={k} value={k} className="bg-[#111]">{k} Tier — {v.price}</option>)}
                 </select>
               </div>
             )}
-
             <div className="pt-2">
               <button type="submit" disabled={updating} className="btn-primary w-full justify-center">
-                {updating && <Loader2 className="w-4 h-4 animate-spin" />}
-                Apply Configuration
+                {updating && <Loader2 className="w-4 h-4 animate-spin" />} Apply Configuration
               </button>
             </div>
           </form>
@@ -376,7 +347,7 @@ const DashboardView = ({ showMessage }) => {
 };
 
 // ══════════════════════════════════════════════════════════════
-//  Orders View
+//  Orders View (Cart Display)
 // ══════════════════════════════════════════════════════════════
 const STATUS_STYLES = {
   Pending:   'text-amber-400 bg-amber-400/10 border-amber-400/20',
@@ -415,7 +386,7 @@ const OrdersView = ({ showMessage }) => {
       </div>
       <div className="bg-[#0A0A0A] rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse whitespace-nowrap">
+          <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-white/5 bg-white/[0.02]">
                 {['Client', 'Payload', 'Destination', 'Value', 'State'].map(h => (
@@ -430,23 +401,32 @@ const OrdersView = ({ showMessage }) => {
                   ? <tr><td colSpan="5" className="px-6 py-12 text-center text-zinc-600 font-medium">No transactions found.</td></tr>
                   : orders.map(order => (
                     <tr key={order._id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 align-top">
                         <p className="font-medium text-zinc-200">{order.customerName}</p>
                         <p className="font-mono text-xs text-zinc-500 mt-1">{order.phoneNumber}</p>
                       </td>
-                      <td className="px-6 py-4">
-                        <p className="font-medium text-zinc-200">{order.productName}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="font-mono text-xs text-zinc-500">
-                            {order.productCode}
-                          </span>
-                          <span className="w-1 h-1 bg-zinc-700 rounded-full"></span>
-                          <span className="text-xs text-zinc-500">{order.productSize}</span>
+                      <td className="px-6 py-4 align-top">
+                        <div className="flex flex-col gap-3">
+                          {order.items && order.items.map((item, idx) => (
+                            <div key={idx} className="bg-white/[0.03] p-3 rounded-xl border border-white/5">
+                              <p className="font-medium text-zinc-200 text-sm">
+                                <span className="text-indigo-400 font-bold">{item.quantity}x</span> {item.productName}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-[10px] font-mono text-zinc-400 uppercase rounded">Code: {item.productCode}</span>
+                                {item.size && item.size !== 'FREE SIZE' && <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-[10px] font-mono text-zinc-400 uppercase rounded">Size: {item.size}</span>}
+                                {item.color && <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-[10px] font-mono text-zinc-400 uppercase rounded">Color: {item.color}</span>}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-xs text-zinc-400 max-w-[200px] truncate">{order.address}</td>
-                      <td className="px-6 py-4 font-medium text-zinc-200 font-mono">৳{order.totalPrice?.toLocaleString()}</td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 text-xs text-zinc-400 max-w-[200px] truncate align-top pt-7">{order.address}</td>
+                      <td className="px-6 py-4 align-top pt-7">
+                        <p className="font-semibold text-zinc-200 font-mono text-lg">৳{order.totalPrice?.toLocaleString()}</p>
+                        <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">Inc. ৳{order.deliveryCharge} Delivery</p>
+                      </td>
+                      <td className="px-6 py-4 align-top pt-6">
                         <select
                           value={order.status}
                           onChange={e => handleStatusChange(order._id, e.target.value)}
@@ -469,13 +449,14 @@ const OrdersView = ({ showMessage }) => {
 };
 
 // ══════════════════════════════════════════════════════════════
-//  Inventory View (Silicon Valley Multi-Size Logic)
+//  Inventory View (Multi-Size Support & Loading)
 // ══════════════════════════════════════════════════════════════
 const InventoryView = ({ showMessage }) => {
   const [products, setProducts]       = useState([]);
   const [loading, setLoading]         = useState(true);
   const [showModal, setShowModal]     = useState(false);
   const [saving, setSaving]           = useState(false);
+  const [deletingId, setDeletingId]   = useState(null);
   
   const [isEditing, setIsEditing]     = useState(false);
   const [editId, setEditId]           = useState(null);
@@ -503,10 +484,10 @@ const InventoryView = ({ showMessage }) => {
       const payload = { ...formData, price: Number(formData.price) };
       if (isEditing) {
         await api.put(`/products/${editId}`, payload);
-        showMessage('Product configuration mutated successfully', 'success');
+        showMessage('Item mutated successfully', 'success');
       } else {
         await api.post('/products', payload);
-        showMessage('New item injected into infrastructure', 'success');
+        showMessage('Item injected successfully', 'success');
       }
       closeModal();
       loadProducts();
@@ -527,12 +508,15 @@ const InventoryView = ({ showMessage }) => {
 
   const handleDelete = async (id) => {
     if (!window.confirm('Execute deletion?')) return;
+    setDeletingId(id);
     try {
       await api.delete(`/products/${id}`);
       showMessage('Item purged', 'success');
       setProducts(prev => prev.filter(p => p._id !== id));
     } catch (err) {
       showMessage('Purge failed.', 'error');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -608,8 +592,12 @@ const InventoryView = ({ showMessage }) => {
                             <button onClick={() => handleEditClick(p)} className="p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                               <Edit2 className="w-4 h-4" />
                             </button>
-                            <button onClick={() => handleDelete(p._id)} className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors">
-                              <Trash2 className="w-4 h-4" />
+                            <button 
+                              onClick={() => handleDelete(p._id)} 
+                              disabled={deletingId === p._id}
+                              className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {deletingId === p._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                             </button>
                           </td>
                         </tr>
@@ -842,33 +830,7 @@ const SettingsView = ({ showMessage }) => {
 };
 
 // ══════════════════════════════════════════════════════════════
-//  Shared UI Primitives
-// ══════════════════════════════════════════════════════════════
-const Modal = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-    <div className="bg-[#0A0A0A] border border-white/10 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-      <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
-        <h2 className="text-base font-medium text-zinc-200">{title}</h2>
-        <button onClick={onClose} className="p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-      <div className="p-6">
-        {children}
-      </div>
-    </div>
-  </div>
-);
-
-const FormField = ({ label, children }) => (
-  <div>
-    <label className="block text-[10px] font-medium text-zinc-500 uppercase tracking-widest mb-2">{label}</label>
-    {children}
-  </div>
-);
-
-// ══════════════════════════════════════════════════════════════
-//  Dashboard Layout (The "Linear" Look)
+//  Dashboard Layout
 // ══════════════════════════════════════════════════════════════
 const DashboardLayout = () => {
   const { user, logout }  = useContext(AuthContext);
@@ -910,7 +872,7 @@ const DashboardLayout = () => {
           background-color: #ededed;
           color: #000;
           font-size: 0.875rem;
-          font-weight: 500;
+          font-weight: 600;
           border-radius: 0.5rem;
           display: flex;
           align-items: center;

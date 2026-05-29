@@ -111,7 +111,20 @@ const ProductSchema = new mongoose.Schema({
 // Compound unique index: same code can't appear twice in the same shop
 ProductSchema.index({ shopId: 1, code: 1 }, { unique: true });
 
-// ── Order Schema ──────────────────────────────────────────────
+// ── Order Schema (🔥 UPDATED FOR MULTI-ITEMS & QUANTITY) ─────
+
+// ১. প্রথমে একটা সাব-স্কিমা বানাতে হবে প্রতিটি প্রোডাক্ট আইটেমের জন্য
+const OrderItemSchema = new mongoose.Schema({
+    productCode: { type: String, required: true },
+    productName: { type: String, required: true },
+    size:        { type: String, default: 'FREE SIZE' },
+    color:       { type: String, default: '' },
+    quantity:    { type: Number, default: 1, min: 1 },
+    unitPrice:   { type: Number, default: 0 },
+    subTotal:    { type: Number, default: 0 }
+});
+
+// ২. মেইন অর্ডার স্কিমা যেখানে items অ্যারে থাকবে
 const OrderSchema = new mongoose.Schema({
     shopId: {
         type:     mongoose.Schema.Types.ObjectId,
@@ -123,9 +136,9 @@ const OrderSchema = new mongoose.Schema({
     phoneNumber:  { type: String, required: true, trim: true },
     address:      { type: String, required: true, trim: true },
 
-    productName:      { type: String, trim: true },
-    productCode:      { type: String, trim: true },
-    productSize:      { type: String, default: 'M' },
+    // 🔥 এখানে মাল্টিপল আইটেম সেভ হবে
+    items: [OrderItemSchema], 
+
     deliveryLocation: { type: String, default: '' },
     deliveryCharge:   { type: Number, default: 0,   min: 0 },
     totalPrice:       { type: Number, default: 0,   min: 0 },
