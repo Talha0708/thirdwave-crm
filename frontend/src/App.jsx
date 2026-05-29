@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ShoppingCart, Package, Settings,
   Plus, Save, Power, DollarSign, Info, X, CheckCircle,
   Loader2, Trash2, Edit2, LogOut, Shield, Users, Activity,
-  RefreshCw, TrendingUp, Zap, KeyRound, Lock, MessageCircle, ChevronRight
+  RefreshCw, TrendingUp, Zap, KeyRound, Lock, MessageCircle
 } from 'lucide-react';
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import AuthPage from './pages/AuthPage'; 
@@ -17,6 +17,9 @@ const PLAN_LABELS = {
   Business:   { price: '৳1,200', desc: '8k Msgs/mo' },
   Enterprise: { price: '৳3,000+', desc: 'Unlimited'  },
 };
+
+// ── Available Sizes Array ─────────────────────────────────────
+const AVAILABLE_SIZES = ['S', 'M', 'L', 'XL', 'XXL', '3XL', 'FREE SIZE'];
 
 // ── Toast Notification ────────────────────────────────────────
 const Toast = ({ message, type, onClose }) => {
@@ -280,7 +283,7 @@ const SuperAdminView = ({ showMessage }) => {
               </select>
             </FormField>
             <div className="pt-4">
-              <button type="submit" disabled={creating} className="btn-primary w-full">
+              <button type="submit" disabled={creating} className="btn-primary w-full justify-center">
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                 Initialize Deployment
               </button>
@@ -333,7 +336,7 @@ const SuperAdminView = ({ showMessage }) => {
             )}
 
             <div className="pt-2">
-              <button type="submit" disabled={updating} className="btn-primary w-full">
+              <button type="submit" disabled={updating} className="btn-primary w-full justify-center">
                 {updating && <Loader2 className="w-4 h-4 animate-spin" />}
                 Apply Configuration
               </button>
@@ -466,7 +469,7 @@ const OrdersView = ({ showMessage }) => {
 };
 
 // ══════════════════════════════════════════════════════════════
-//  Inventory View
+//  Inventory View (Silicon Valley Multi-Size Logic)
 // ══════════════════════════════════════════════════════════════
 const InventoryView = ({ showMessage }) => {
   const [products, setProducts]       = useState([]);
@@ -476,7 +479,8 @@ const InventoryView = ({ showMessage }) => {
   
   const [isEditing, setIsEditing]     = useState(false);
   const [editId, setEditId]           = useState(null);
-  const [formData, setFormData]       = useState({ name: '', code: '', price: '', size: 'M', color: '' });
+  
+  const [formData, setFormData]       = useState({ name: '', code: '', price: '', sizes: [], color: '' });
 
   const loadProducts = useCallback(async () => {
     setLoading(true);
@@ -499,10 +503,10 @@ const InventoryView = ({ showMessage }) => {
       const payload = { ...formData, price: Number(formData.price) };
       if (isEditing) {
         await api.put(`/products/${editId}`, payload);
-        showMessage('Item mutated', 'success');
+        showMessage('Product configuration mutated successfully', 'success');
       } else {
         await api.post('/products', payload);
-        showMessage('Item injected', 'success');
+        showMessage('New item injected into infrastructure', 'success');
       }
       closeModal();
       loadProducts();
@@ -516,7 +520,8 @@ const InventoryView = ({ showMessage }) => {
   const handleEditClick = (p) => {
     setIsEditing(true);
     setEditId(p._id);
-    setFormData({ name: p.name, code: p.code, price: p.price, size: p.size || 'M', color: p.color || '' });
+    const currentSizes = p.sizes && Array.isArray(p.sizes) ? p.sizes : (p.size ? [p.size] : []);
+    setFormData({ name: p.name, code: p.code, price: p.price, sizes: currentSizes, color: p.color || '' });
     setShowModal(true);
   };
 
@@ -535,7 +540,18 @@ const InventoryView = ({ showMessage }) => {
     setShowModal(false);
     setIsEditing(false);
     setEditId(null);
-    setFormData({ name: '', code: '', price: '', size: 'M', color: '' });
+    setFormData({ name: '', code: '', price: '', sizes: [], color: '' });
+  };
+
+  const handleSizeToggle = (sz) => {
+    setFormData(prev => {
+      const isExist = prev.sizes.includes(sz);
+      if (isExist) {
+        return { ...prev, sizes: prev.sizes.filter(s => s !== sz) };
+      } else {
+        return { ...prev, sizes: [...prev.sizes, sz] };
+      }
+    });
   };
 
   return (
@@ -543,7 +559,7 @@ const InventoryView = ({ showMessage }) => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold text-zinc-100 tracking-tight">Data Models</h1>
-          <p className="text-sm text-zinc-500 mt-1">Manage product schemas and pricing</p>
+          <p className="text-sm text-zinc-500 mt-1">Manage catalog schemas and batch size entry</p>
         </div>
         <button onClick={() => setShowModal(true)} className="btn-primary">
           <Plus className="w-4 h-4" /> Inject Item
@@ -555,7 +571,7 @@ const InventoryView = ({ showMessage }) => {
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="border-b border-white/5 bg-white/[0.02]">
-                {['ID', 'Identifier', 'Attributes', 'Base Value', ''].map((h, i) => (
+                {['ID', 'Identifier', 'Available Sizes', 'Base Value', ''].map((h, i) => (
                   <th key={i} className={`px-6 py-4 text-xs font-medium uppercase text-zinc-500 tracking-widest ${i === 4 ? 'text-right' : ''}`}>{h}</th>
                 ))}
               </tr>
@@ -565,31 +581,40 @@ const InventoryView = ({ showMessage }) => {
               <>
                 {products.length === 0
                   ? <tr><td colSpan="5" className="px-6 py-12 text-center text-zinc-600 font-medium">Dataset empty.</td></tr>
-                  : products.map(p => (
-                    <tr key={p._id} className="hover:bg-white/[0.02] transition-colors group">
-                      <td className="px-6 py-4 font-mono text-zinc-400 text-sm">{p.code}</td>
-                      <td className="px-6 py-4 font-medium text-zinc-200">{p.name}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          {p.size && (
-                            <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-[10px] font-medium text-zinc-300 uppercase rounded">
-                              {p.size}
-                            </span>
-                          )}
-                          <span className="text-xs text-zinc-500">{p.color || 'N/A'}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 font-mono text-zinc-200">৳{p.price?.toLocaleString()}</td>
-                      <td className="px-6 py-4 text-right flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => handleEditClick(p)} className="p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleDelete(p._id)} className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  : products.map(p => {
+                      const displaySizes = p.sizes && Array.isArray(p.sizes) ? p.sizes : (p.size ? [p.size] : []);
+                      return (
+                        <tr key={p._id} className="hover:bg-white/[0.02] transition-colors group">
+                          <td className="px-6 py-4 font-mono text-zinc-400 text-sm">{p.code}</td>
+                          <td className="px-6 py-4 font-medium text-zinc-200">
+                            {p.name}
+                            {p.color && <span className="block text-xs text-zinc-500 font-normal mt-0.5">{p.color}</span>}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-wrap gap-1.5 max-w-[300px]">
+                              {displaySizes.length > 0 ? (
+                                displaySizes.map(sz => (
+                                  <span key={sz} className="px-2.5 py-1 bg-white/5 border border-white/10 text-[10px] font-medium font-mono text-zinc-300 uppercase rounded-md shadow-sm">
+                                    {sz}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-xs font-mono text-zinc-600 italic">No Size (e.g. Wallet/Bag)</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 font-mono text-zinc-200">৳{p.price?.toLocaleString()}</td>
+                          <td className="px-6 py-4 text-right flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <button onClick={() => handleEditClick(p)} className="p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleDelete(p._id)} className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                 }
               </>
             )}
@@ -599,30 +624,52 @@ const InventoryView = ({ showMessage }) => {
       </div>
 
       {showModal && (
-        <Modal title={isEditing ? "Mutate Schema" : "Define Schema"} onClose={closeModal}>
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <Modal title={isEditing ? "Mutate Data Model" : "Define Data Model"} onClose={closeModal}>
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div className="grid grid-cols-2 gap-4">
-              <FormField label="Unique ID (Code)">
-                <input required type="text" className="form-input font-mono uppercase" value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} />
+              <FormField label="Unique ID / SKU Code">
+                <input required type="text" className="form-input font-mono uppercase" placeholder="e.g. 101" value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} />
               </FormField>
               <FormField label="Descriptor (Name)">
-                <input required type="text" className="form-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                <input required type="text" className="form-input" placeholder="e.g. Premium Kurta" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
               </FormField>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Scale (Size)">
-                <select className="form-input" value={formData.size} onChange={e => setFormData({ ...formData, size: e.target.value })}>
-                  <option value="S">S</option><option value="M">M</option><option value="L">L</option><option value="XL">XL</option><option value="XXL">XXL</option><option value="FREE SIZE">FREE</option>
-                </select>
-              </FormField>
-              <FormField label="Variant (Color)">
-                <input type="text" className="form-input" value={formData.color} onChange={e => setFormData({ ...formData, color: e.target.value })} />
-              </FormField>
-            </div>
-            <FormField label="Integer Value (৳)">
-              <input required type="number" min="0" className="form-input font-mono" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} />
+            
+            <FormField label="Scale Configuration (Select Available Sizes)">
+              <div className="grid grid-cols-4 gap-2 mt-2 bg-white/[0.01] border border-white/5 p-3 rounded-xl">
+                {AVAILABLE_SIZES.map(sz => {
+                  const isSelected = formData.sizes.includes(sz);
+                  return (
+                    <button
+                      key={sz}
+                      type="button"
+                      onClick={() => handleSizeToggle(sz)}
+                      className={`py-2.5 rounded-lg text-xs font-semibold font-mono tracking-wider border transition-all duration-200 ${
+                        isSelected
+                          ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.2)] font-bold'
+                          : 'bg-zinc-900/50 text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-300'
+                      }`}
+                    >
+                      {sz}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-zinc-500 mt-2 font-mono leading-relaxed">
+                * Click to toggle sizes. Leave unselected for items without size parameters (e.g. Wallets).
+              </p>
             </FormField>
-            <div className="flex items-center justify-end gap-3 mt-8">
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Variant (Color)">
+                <input type="text" className="form-input" placeholder="e.g. Black" value={formData.color} onChange={e => setFormData({ ...formData, color: e.target.value })} />
+              </FormField>
+              <FormField label="Integer Value (৳)">
+                <input required type="number" min="0" className="form-input font-mono" placeholder="799" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} />
+              </FormField>
+            </div>
+            
+            <div className="flex items-center justify-end gap-3 mt-8 pt-4 border-t border-white/5">
               <button type="button" onClick={closeModal} className="px-5 py-2.5 text-sm font-medium text-zinc-400 hover:text-white transition-colors">Cancel</button>
               <button type="submit" disabled={saving} className="btn-primary">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
