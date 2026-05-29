@@ -3,12 +3,12 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import {
   LayoutDashboard, ShoppingCart, Package, Settings,
   Plus, Save, Power, DollarSign, Info, X, CheckCircle,
-  Loader2, Trash2, LogOut, Shield, Users, Activity,
-  RefreshCw, TrendingUp, Zap, KeyRound, Lock, MessageCircle
+  Loader2, Trash2, Edit2, LogOut, Shield, Users, Activity,
+  RefreshCw, TrendingUp, Zap, KeyRound, Lock, MessageCircle, ChevronRight
 } from 'lucide-react';
 import { AuthProvider, AuthContext } from './context/AuthContext';
-import AuthPage from './pages/AuthPage'; // নিশ্চিত করুন এই পাথটি সঠিক
-import api from './api'; // নিশ্চিত করুন আপনার axios api ফাইলের পাথটি সঠিক
+import AuthPage from './pages/AuthPage'; 
+import api from './api'; 
 
 // ── Enterprise Plan Config ────────────────────────────────────
 const PLAN_LIMITS = { Starter: 3000, Business: 8000, Enterprise: null };
@@ -27,9 +27,9 @@ const Toast = ({ message, type, onClose }) => {
     return () => clearTimeout(t);
   }, [message, onClose]);
   return (
-    <div className={`fixed top-5 right-5 z-[9999] flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl text-white text-sm font-semibold transition-all duration-300
-      ${isError ? 'bg-red-600' : 'bg-gray-950 border border-gray-800'}`}>
-      {isError ? <X className="w-5 h-5 text-red-200" /> : <CheckCircle className="w-5 h-5 text-emerald-400" />}
+    <div className={`fixed top-6 right-6 z-[9999] flex items-center gap-3 px-5 py-4 rounded-xl border backdrop-blur-xl text-sm font-medium transition-all duration-300 transform translate-y-0
+      ${isError ? 'bg-red-950/80 border-red-900/50 text-red-200 shadow-[0_0_30px_rgba(220,38,38,0.15)]' : 'bg-zinc-900/80 border-zinc-800/50 text-zinc-200 shadow-[0_0_30px_rgba(255,255,255,0.05)]'}`}>
+      {isError ? <X className="w-5 h-5 text-red-400" /> : <CheckCircle className="w-5 h-5 text-zinc-400" />}
       {message}
     </div>
   );
@@ -39,10 +39,10 @@ const Toast = ({ message, type, onClose }) => {
 const TableSkeleton = ({ columns }) => (
   <>
     {[1, 2, 3, 4].map(r => (
-      <tr key={r} className="border-b border-gray-50">
+      <tr key={r} className="border-b border-white/5">
         {Array(columns).fill(0).map((_, c) => (
-          <td key={c} className="px-6 py-4">
-            <div className="h-4 bg-gray-100 rounded animate-pulse w-3/4"></div>
+          <td key={c} className="px-6 py-5">
+            <div className="h-4 bg-white/5 rounded animate-pulse w-2/3"></div>
           </td>
         ))}
       </tr>
@@ -51,26 +51,19 @@ const TableSkeleton = ({ columns }) => (
 );
 
 // ── Stat Card ─────────────────────────────────────────────────
-const StatCard = ({ icon, label, value, variant = 'default', loading }) => {
-  const styles = {
-    dark:    'bg-gray-950 text-white',
-    success: 'bg-emerald-50 border border-emerald-100 text-emerald-900',
-    purple:  'bg-purple-50 border border-purple-100 text-purple-900',
-    default: 'bg-white border border-gray-100 text-gray-900',
-  };
-  const iconStyles = {
-    dark:    'text-white opacity-10',
-    success: 'text-emerald-400 opacity-20',
-    purple:  'text-purple-400 opacity-20',
-    default: 'text-gray-300',
-  };
+const StatCard = ({ icon, label, value, loading }) => {
   return (
-    <div className={`relative rounded-2xl p-6 overflow-hidden shadow-sm ${styles[variant]}`}>
-      <div className={`absolute -bottom-4 -right-4 w-28 h-28 ${iconStyles[variant]}`}>
-        {icon}
+    <div className="group relative rounded-2xl p-6 bg-[#0A0A0A] border border-white/10 hover:border-white/20 transition-all duration-300 overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="relative flex items-center justify-between">
+        <div>
+          <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-2">{label}</p>
+          {loading ? <Loader2 className="w-6 h-6 animate-spin text-zinc-600" /> : <h3 className="text-3xl font-semibold text-zinc-100 tracking-tight">{value}</h3>}
+        </div>
+        <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400 group-hover:text-white group-hover:scale-110 transition-all duration-300">
+          {icon}
+        </div>
       </div>
-      <p className="text-xs font-black uppercase tracking-widest mb-2 opacity-60">{label}</p>
-      {loading ? <Loader2 className="w-6 h-6 animate-spin mt-2" /> : <h3 className="text-3xl font-black">{value}</h3>}
     </div>
   );
 };
@@ -164,75 +157,68 @@ const SuperAdminView = ({ showMessage }) => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-purple-100 text-purple-600 flex items-center justify-center rounded-xl shadow-inner">
-            <Shield className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Control Center</h1>
-            <p className="text-sm font-bold text-gray-400">Manage Thirdwave CRM clients and subscriptions</p>
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold text-zinc-100 tracking-tight">Command Center</h1>
+          <p className="text-sm text-zinc-500 mt-1">Manage infrastructure and deployments</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="bg-purple-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-purple-700 active:scale-95 transition-all shadow-lg shadow-purple-200"
+          className="bg-white text-black px-5 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-zinc-200 transition-colors"
         >
-          <Plus className="w-4 h-4" /> Create Client
+          <Plus className="w-4 h-4" /> Provision Workspace
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard loading={loading} variant="dark"    icon={<Users    className="w-full h-full" />} label="Total Users"      value={stats.totalUsers} />
-        <StatCard loading={loading} variant="default" icon={<Package  className="w-full h-full" />} label="Registered Shops" value={stats.totalShops} />
-        <StatCard loading={loading} variant="success" icon={<Zap className="w-full h-full" />} label="Active AI Bots"   value={stats.activeShops} />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <StatCard loading={loading} icon={<Users className="w-5 h-5" />} label="Total Identities" value={stats.totalUsers} />
+        <StatCard loading={loading} icon={<Package className="w-5 h-5" />} label="Workspaces" value={stats.totalShops} />
+        <StatCard loading={loading} icon={<Zap className="w-5 h-5 text-emerald-400" />} label="Active AI Instances" value={stats.activeShops} />
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-6 border-b border-gray-100">
-          <h2 className="text-lg font-black text-gray-900 flex items-center gap-2"><KeyRound className="w-5 h-5" /> Client Directory</h2>
+      <div className="bg-[#0A0A0A] rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
+        <div className="px-6 py-5 border-b border-white/10 flex items-center gap-3">
+          <Shield className="w-4 h-4 text-zinc-500" />
+          <h2 className="text-sm font-medium text-zinc-300">Client Instances</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                {['Shop', 'Plan & Usage', 'Status', 'Actions'].map(h => (
-                  <th key={h} className="px-6 py-4 text-xs font-black uppercase text-gray-400 tracking-wider">{h}</th>
+              <tr className="border-b border-white/5 bg-white/[0.02]">
+                {['Organization', 'Resource Usage', 'Status', 'Configuration'].map(h => (
+                  <th key={h} className="px-6 py-4 text-xs font-medium uppercase text-zinc-500 tracking-widest">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-white/5">
             {loading ? <TableSkeleton columns={4} /> : (
               <>
                 {shops.length === 0 && (
-                  <tr><td colSpan="4" className="px-6 py-12 text-center text-gray-500 font-bold">No clients found.</td></tr>
+                  <tr><td colSpan="4" className="px-6 py-12 text-center text-zinc-600 font-medium">No instances provisioned.</td></tr>
                 )}
                 {shops.map(shop => {
                   const limit        = PLAN_LIMITS[shop.plan];
                   const usagePct     = limit ? Math.min(100, (shop.monthlyMessageCount / limit) * 100) : 0;
                   const isWarning    = usagePct >= 90;
                   return (
-                    <tr key={shop._id} className="hover:bg-gray-50/50 transition-colors">
+                    <tr key={shop._id} className="hover:bg-white/[0.02] transition-colors group">
                       <td className="px-6 py-4">
-                        <p className="font-black text-gray-900">{shop.shopName}</p>
-                        <p className="text-xs font-bold text-gray-400 mt-0.5">{shop.userId?.name} · {shop.userId?.email}</p>
+                        <p className="font-medium text-zinc-200">{shop.shopName}</p>
+                        <p className="text-xs text-zinc-500 mt-1 font-mono">{shop.userId?.email}</p>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 w-1/3">
                         <div className="mb-2 flex items-center justify-between">
-                          <span className="px-2.5 py-1 bg-gray-100 text-gray-800 text-[10px] font-black uppercase tracking-widest rounded">
+                          <span className="px-2 py-1 bg-white/10 text-zinc-300 text-[10px] font-medium uppercase tracking-widest rounded border border-white/5">
                             {shop.plan}
                           </span>
-                          <span className={`text-xs font-bold ${isWarning ? 'text-red-600' : 'text-gray-400'}`}>
+                          <span className={`text-xs font-mono ${isWarning ? 'text-red-400' : 'text-zinc-500'}`}>
                             {shop.monthlyMessageCount.toLocaleString()} / {limit ? limit.toLocaleString() : '∞'}
                           </span>
                         </div>
                         {limit && (
-                          <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
                             <div
-                              className={`h-full rounded-full transition-all ${isWarning ? 'bg-red-500' : 'bg-emerald-500'}`}
+                              className={`h-full rounded-full transition-all ${isWarning ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-white shadow-[0_0_10px_rgba(255,255,255,0.3)]'}`}
                               style={{ width: `${usagePct}%` }}
                             />
                           </div>
@@ -241,21 +227,22 @@ const SuperAdminView = ({ showMessage }) => {
                       <td className="px-6 py-4">
                         <button
                           onClick={() => toggleShopStatus(shop._id)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all border ${
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all border ${
                             shop.isActive
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                              : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                              : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
                           }`}
                         >
-                          {shop.isActive ? 'ACTIVE' : 'SUSPENDED'}
+                          <span className={`w-1.5 h-1.5 rounded-full ${shop.isActive ? 'bg-emerald-400' : 'bg-red-400'}`}></span>
+                          {shop.isActive ? 'Active' : 'Suspended'}
                         </button>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 text-right">
                         <button
                           onClick={() => openSubModal(shop)}
-                          className="px-4 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-bold hover:bg-black transition-colors"
+                          className="px-4 py-2 bg-transparent border border-white/10 text-zinc-400 rounded-lg text-xs font-medium hover:bg-white/5 hover:text-white hover:border-white/20 transition-all"
                         >
-                          Manage Plan
+                          Configure
                         </button>
                       </td>
                     </tr>
@@ -268,82 +255,68 @@ const SuperAdminView = ({ showMessage }) => {
         </div>
       </div>
 
-      {/* Create Client Modal */}
       {showCreateModal && (
-        <Modal title="Add New Client" onClose={() => setShowCreate(false)}>
+        <Modal title="Deploy Workspace" onClose={() => setShowCreate(false)}>
           <form onSubmit={handleCreateClient} className="space-y-4">
-            {[
-              { label: 'Client Name',     key: 'name',     type: 'text'     },
-              { label: 'Login Email',     key: 'email',    type: 'email'    },
-              { label: 'Login Password',  key: 'password', type: 'text'     },
-              { label: 'Shop Name',       key: 'shopName', type: 'text'     },
-            ].map(({ label, key, type }) => (
-              <FormField key={key} label={label}>
-                <input
-                  required type={type}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-medium text-sm outline-none focus:border-gray-900 transition-colors"
-                  value={clientData[key]}
-                  onChange={e => setClientData({ ...clientData, [key]: e.target.value })}
-                />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField label="Owner Name">
+                <input required type="text" className="form-input" value={clientData.name} onChange={e => setClientData({ ...clientData, name: e.target.value })} />
               </FormField>
-            ))}
-            <FormField label="Subscription Plan">
-              <select
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-sm outline-none focus:border-gray-900"
-                value={clientData.plan}
-                onChange={e => setClientData({ ...clientData, plan: e.target.value })}
-              >
+              <FormField label="Workspace ID (Shop Name)">
+                <input required type="text" className="form-input" value={clientData.shopName} onChange={e => setClientData({ ...clientData, shopName: e.target.value })} />
+              </FormField>
+            </div>
+            <FormField label="Root Email">
+              <input required type="email" className="form-input" value={clientData.email} onChange={e => setClientData({ ...clientData, email: e.target.value })} />
+            </FormField>
+            <FormField label="Access Key (Password)">
+              <input required type="text" className="form-input font-mono" value={clientData.password} onChange={e => setClientData({ ...clientData, password: e.target.value })} />
+            </FormField>
+            <FormField label="Compute Tier">
+              <select className="form-input" value={clientData.plan} onChange={e => setClientData({ ...clientData, plan: e.target.value })}>
                 {Object.entries(PLAN_LABELS).map(([k, v]) => (
-                  <option key={k} value={k}>{k} ({v.price} · {v.desc})</option>
+                  <option key={k} value={k} className="bg-[#111]">{k} ({v.price} / {v.desc})</option>
                 ))}
               </select>
             </FormField>
-            <button
-              type="submit" disabled={creating}
-              className="w-full py-3.5 mt-2 bg-purple-600 text-white rounded-xl font-black text-sm tracking-wide hover:bg-purple-700 active:scale-95 transition-all shadow-lg shadow-purple-200 disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              {creating && <Loader2 className="w-4 h-4 animate-spin" />}
-              Create & Provision Account
-            </button>
+            <div className="pt-4">
+              <button type="submit" disabled={creating} className="btn-primary w-full">
+                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                Initialize Deployment
+              </button>
+            </div>
           </form>
         </Modal>
       )}
 
-      {/* Subscription Modal */}
       {showSubModal && selectedShop && (
-        <Modal title="Manage Subscription" onClose={() => setShowSubModal(false)}>
-          <form onSubmit={handleSubscriptionUpdate} className="space-y-5">
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Selected Shop</p>
-              <p className="font-black text-gray-900 text-lg">{selectedShop.shopName}</p>
-              <p className="text-xs font-bold text-gray-500 mt-1">
-                Current Plan: {selectedShop.plan} · {selectedShop.monthlyMessageCount.toLocaleString()} msgs used
-              </p>
+        <Modal title="Configure Infrastructure" onClose={() => setShowSubModal(false)}>
+          <form onSubmit={handleSubscriptionUpdate} className="space-y-6">
+            <div className="p-4 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+              <div>
+                <p className="font-medium text-zinc-200">{selectedShop.shopName}</p>
+                <p className="text-xs text-zinc-500 mt-1 font-mono">
+                  {selectedShop.plan} &bull; {selectedShop.monthlyMessageCount.toLocaleString()} reqs
+                </p>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                <Settings className="w-4 h-4 text-zinc-400" />
+              </div>
             </div>
             
             <div className="space-y-3">
             {[
-              { value: 'RENEW',   icon: <RefreshCw className="w-5 h-5 text-emerald-500" />, label: 'Renew Current Plan',      desc: 'Resets usage counter and starts a new 30-day cycle.' },
-              { value: 'UPGRADE', icon: <TrendingUp className="w-5 h-5 text-purple-500" />,  label: 'Upgrade / Change Plan',   desc: 'Moves client to a different plan and resets billing cycle.' },
-              { value: 'TOPUP',   icon: <Zap className="w-5 h-5 text-blue-500" />,           label: 'Emergency Top-Up',       desc: 'Resets usage only — billing date stays the same.' },
+              { value: 'RENEW',   icon: <RefreshCw className="w-4 h-4 text-zinc-400" />, label: 'Reset Cycle',      desc: 'Zero out current usage counters.' },
+              { value: 'UPGRADE', icon: <TrendingUp className="w-4 h-4 text-zinc-400" />,  label: 'Scale Tier',   desc: 'Adjust compute and usage limits.' },
+              { value: 'TOPUP',   icon: <Activity className="w-4 h-4 text-zinc-400" />,           label: 'Burst Quota',       desc: 'Add emergency allocations.' },
             ].map(opt => (
-              <label
-                key={opt.value}
-                className={`flex items-start gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all hover:border-gray-300 ${
-                  selectedAction === opt.value ? 'border-gray-900 bg-gray-50' : 'border-gray-200'
-                }`}
-              >
-                <input
-                  type="radio" name="action" value={opt.value}
-                  checked={selectedAction === opt.value}
-                  onChange={e => setSelectedAction(e.target.value)}
-                  className="mt-0.5 w-4 h-4 accent-gray-900"
-                />
+              <label key={opt.value} className={`flex items-start gap-4 p-4 border rounded-xl cursor-pointer transition-all ${selectedAction === opt.value ? 'border-white/40 bg-white/10' : 'border-white/5 hover:border-white/20 hover:bg-white/[0.02]'}`}>
+                <input type="radio" name="action" value={opt.value} checked={selectedAction === opt.value} onChange={e => setSelectedAction(e.target.value)} className="mt-1 w-4 h-4 accent-white bg-transparent border-white/20" />
                 <div>
-                  <div className="flex items-center gap-2 font-black text-gray-900">
+                  <div className="flex items-center gap-2 font-medium text-sm text-zinc-200">
                     {opt.icon} {opt.label}
                   </div>
-                  <p className="text-xs font-bold text-gray-500 mt-1 leading-relaxed">{opt.desc}</p>
+                  <p className="text-xs text-zinc-500 mt-1">{opt.desc}</p>
                 </div>
               </label>
             ))}
@@ -351,25 +324,20 @@ const SuperAdminView = ({ showMessage }) => {
 
             {selectedAction === 'UPGRADE' && (
               <div className="animate-in slide-in-from-top-2 duration-200">
-                <select
-                  value={newPlan}
-                  onChange={e => setNewPlan(e.target.value)}
-                  className="w-full p-3 border-2 border-gray-200 rounded-xl text-sm font-bold outline-none focus:border-gray-900"
-                >
+                <select value={newPlan} onChange={e => setNewPlan(e.target.value)} className="form-input">
                   {Object.entries(PLAN_LABELS).map(([k, v]) => (
-                    <option key={k} value={k}>{k} Plan — {v.price} · {v.desc}</option>
+                    <option key={k} value={k} className="bg-[#111]">{k} Tier — {v.price}</option>
                   ))}
                 </select>
               </div>
             )}
 
-            <button
-              type="submit" disabled={updating}
-              className="w-full py-3.5 mt-2 bg-gray-900 text-white rounded-xl font-black text-sm tracking-wide hover:bg-black active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              {updating && <Loader2 className="w-4 h-4 animate-spin" />}
-              Confirm & Apply Changes
-            </button>
+            <div className="pt-2">
+              <button type="submit" disabled={updating} className="btn-primary w-full">
+                {updating && <Loader2 className="w-4 h-4 animate-spin" />}
+                Apply Configuration
+              </button>
+            </div>
           </form>
         </Modal>
       )}
@@ -386,17 +354,19 @@ const DashboardView = ({ showMessage }) => {
   useEffect(() => {
     api.get('/analytics')
       .then(res => setStats({ totalOrders: res.data.totalOrders ?? 0, totalRevenue: res.data.totalRevenue ?? 0 }))
-      .catch(() => showMessage('Failed to load analytics.', 'error'))
+      .catch(() => showMessage('Failed to fetch analytics.', 'error'))
       .finally(() => setLoading(false));
   }, [showMessage]);
+  
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <h1 className="text-2xl font-black text-gray-900">Dashboard Overview</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <StatCard loading={loading} variant="success" icon={<DollarSign className="w-full h-full" />}
-          label="Total Revenue" value={`৳ ${stats.totalRevenue.toLocaleString()}`} />
-        <StatCard loading={loading} variant="default" icon={<ShoppingCart className="w-full h-full" />}
-          label="Total Orders" value={stats.totalOrders.toLocaleString()} />
+      <div>
+        <h1 className="text-3xl font-semibold text-zinc-100 tracking-tight">Overview</h1>
+        <p className="text-sm text-zinc-500 mt-1">Real-time metrics for your workspace</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <StatCard loading={loading} icon={<DollarSign className="w-5 h-5" />} label="Gross Volume" value={`৳ ${stats.totalRevenue.toLocaleString()}`} />
+        <StatCard loading={loading} icon={<ShoppingCart className="w-5 h-5" />} label="Transactions" value={stats.totalOrders.toLocaleString()} />
       </div>
     </div>
   );
@@ -406,11 +376,11 @@ const DashboardView = ({ showMessage }) => {
 //  Orders View
 // ══════════════════════════════════════════════════════════════
 const STATUS_STYLES = {
-  Pending:   'bg-yellow-50 text-yellow-800 border-yellow-200',
-  Confirmed: 'bg-blue-50 text-blue-800 border-blue-200',
-  Shipped:   'bg-purple-50 text-purple-800 border-purple-200',
-  Delivered: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-  Cancelled: 'bg-red-50 text-red-800 border-red-200',
+  Pending:   'text-amber-400 bg-amber-400/10 border-amber-400/20',
+  Confirmed: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
+  Shipped:   'text-purple-400 bg-purple-400/10 border-purple-400/20',
+  Delivered: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
+  Cancelled: 'text-red-400 bg-red-400/10 border-red-400/20',
 };
 const ORDER_STATUSES = Object.keys(STATUS_STYLES);
 
@@ -420,58 +390,66 @@ const OrdersView = ({ showMessage }) => {
   useEffect(() => {
     api.get('/orders')
       .then(res => setOrders(res.data?.orders ?? []))
-      .catch(() => showMessage('Failed to load orders.', 'error'))
+      .catch(() => showMessage('Failed to load logs.', 'error'))
       .finally(() => setLoading(false));
   }, [showMessage]);
+
   const handleStatusChange = async (id, status) => {
     try {
       await api.put(`/orders/${id}/status`, { status });
       setOrders(prev => prev.map(o => o._id === id ? { ...o, status } : o));
-      showMessage('Order status updated!', 'success');
+      showMessage('State updated', 'success');
     } catch {
-      showMessage('Failed to update status.', 'error');
+      showMessage('Failed to mutate state', 'error');
     }
   };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <h1 className="text-2xl font-black text-gray-900">Order Management</h1>
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div>
+        <h1 className="text-3xl font-semibold text-zinc-100 tracking-tight">Transactions</h1>
+        <p className="text-sm text-zinc-500 mt-1">Audit log of all order requests</p>
+      </div>
+      <div className="bg-[#0A0A0A] rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                {['Customer', 'Phone', 'Product', 'Address', 'Total', 'Status'].map(h => (
-                  <th key={h} className="px-6 py-4 text-xs font-black uppercase text-gray-400 tracking-wider">{h}</th>
+              <tr className="border-b border-white/5 bg-white/[0.02]">
+                {['Client', 'Payload', 'Destination', 'Value', 'State'].map(h => (
+                  <th key={h} className="px-6 py-4 text-xs font-medium uppercase text-zinc-500 tracking-widest">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
-            {loading ? <TableSkeleton columns={6} /> : (
+            <tbody className="divide-y divide-white/5">
+            {loading ? <TableSkeleton columns={5} /> : (
               <>
                 {orders.length === 0
-                  ? <tr><td colSpan="6" className="px-6 py-12 text-center text-gray-500 font-bold">No orders yet.</td></tr>
+                  ? <tr><td colSpan="5" className="px-6 py-12 text-center text-zinc-600 font-medium">No transactions found.</td></tr>
                   : orders.map(order => (
-                    <tr key={order._id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-6 py-4 font-bold text-gray-900">{order.customerName}</td>
-                      <td className="px-6 py-4 font-mono text-sm text-gray-600">{order.phoneNumber}</td>
+                    <tr key={order._id} className="hover:bg-white/[0.02] transition-colors">
                       <td className="px-6 py-4">
-                        <p className="font-bold text-gray-900">{order.productName}</p>
+                        <p className="font-medium text-zinc-200">{order.customerName}</p>
+                        <p className="font-mono text-xs text-zinc-500 mt-1">{order.phoneNumber}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-zinc-200">{order.productName}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="px-2 py-0.5 bg-gray-100 text-[10px] font-black tracking-widest uppercase rounded">
-                            #{order.productCode}
+                          <span className="font-mono text-xs text-zinc-500">
+                            {order.productCode}
                           </span>
-                          <span className="text-xs font-bold text-gray-500">Size: {order.productSize}</span>
+                          <span className="w-1 h-1 bg-zinc-700 rounded-full"></span>
+                          <span className="text-xs text-zinc-500">{order.productSize}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 max-w-[200px] truncate">{order.address}</td>
-                      <td className="px-6 py-4 font-black text-gray-900">৳ {order.totalPrice?.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-xs text-zinc-400 max-w-[200px] truncate">{order.address}</td>
+                      <td className="px-6 py-4 font-medium text-zinc-200 font-mono">৳{order.totalPrice?.toLocaleString()}</td>
                       <td className="px-6 py-4">
                         <select
                           value={order.status}
                           onChange={e => handleStatusChange(order._id, e.target.value)}
-                          className={`px-3 py-1.5 rounded-full text-xs font-bold border outline-none cursor-pointer ${STATUS_STYLES[order.status] ?? 'bg-gray-50 text-gray-700'}`}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium border outline-none cursor-pointer transition-colors appearance-none text-center ${STATUS_STYLES[order.status] ?? 'bg-white/5 text-zinc-400 border-white/10'}`}
                         >
-                          {ORDER_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                          {ORDER_STATUSES.map(s => <option key={s} value={s} className="bg-[#111] text-zinc-200">{s}</option>)}
                         </select>
                       </td>
                     </tr>
@@ -493,138 +471,162 @@ const OrdersView = ({ showMessage }) => {
 const InventoryView = ({ showMessage }) => {
   const [products, setProducts]       = useState([]);
   const [loading, setLoading]         = useState(true);
-  const [showAddModal, setShowAdd]    = useState(false);
-  const [newProduct, setNewProduct]   = useState({ name: '', code: '', price: '' });
+  const [showModal, setShowModal]     = useState(false);
   const [saving, setSaving]           = useState(false);
   
+  const [isEditing, setIsEditing]     = useState(false);
+  const [editId, setEditId]           = useState(null);
+  const [formData, setFormData]       = useState({ name: '', code: '', price: '', size: 'M', color: '' });
+
   const loadProducts = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get('/products');
       setProducts(res.data ?? []);
     } catch {
-      showMessage('Failed to load inventory.', 'error');
+      showMessage('Failed to fetch catalog.', 'error');
     } finally {
       setLoading(false);
     }
   }, [showMessage]);
-  
+
   useEffect(() => { loadProducts(); }, [loadProducts]);
-  
-  const handleAddProduct = async (e) => {
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/products', { ...newProduct, price: Number(newProduct.price) });
-      showMessage('Product added!', 'success');
-      setShowAdd(false);
-      setNewProduct({ name: '', code: '', price: '' });
+      const payload = { ...formData, price: Number(formData.price) };
+      if (isEditing) {
+        await api.put(`/products/${editId}`, payload);
+        showMessage('Item mutated', 'success');
+      } else {
+        await api.post('/products', payload);
+        showMessage('Item injected', 'success');
+      }
+      closeModal();
       loadProducts();
     } catch (err) {
-      showMessage(err.response?.data?.error || 'Failed to add product.', 'error');
+      showMessage(err.response?.data?.error || 'Operation failed', 'error');
     } finally {
       setSaving(false);
     }
   };
-  
+
+  const handleEditClick = (p) => {
+    setIsEditing(true);
+    setEditId(p._id);
+    setFormData({ name: p.name, code: p.code, price: p.price, size: p.size || 'M', color: p.color || '' });
+    setShowModal(true);
+  };
+
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this product?')) return;
+    if (!window.confirm('Execute deletion?')) return;
     try {
       await api.delete(`/products/${id}`);
-      showMessage('Product deleted!', 'success');
+      showMessage('Item purged', 'success');
       setProducts(prev => prev.filter(p => p._id !== id));
     } catch (err) {
-      showMessage(err.response?.data?.error || 'Delete failed.', 'error');
+      showMessage('Purge failed.', 'error');
     }
   };
-  
+
+  const closeModal = () => {
+    setShowModal(false);
+    setIsEditing(false);
+    setEditId(null);
+    setFormData({ name: '', code: '', price: '', size: 'M', color: '' });
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-black text-gray-900">Inventory</h1>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="bg-gray-900 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-black active:scale-95 transition-all shadow-md"
-        >
-          <Plus className="w-4 h-4" /> Add Product
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold text-zinc-100 tracking-tight">Data Models</h1>
+          <p className="text-sm text-zinc-500 mt-1">Manage product schemas and pricing</p>
+        </div>
+        <button onClick={() => setShowModal(true)} className="btn-primary">
+          <Plus className="w-4 h-4" /> Inject Item
         </button>
       </div>
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-100 text-xs font-black uppercase text-gray-400 tracking-wider">
-              {['Code', 'Name', 'Price', ''].map((h, i) => (
-                <th key={i} className={`px-6 py-4 ${i === 3 ? 'text-right' : ''}`}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-          {loading ? <TableSkeleton columns={4} /> : (
-            <>
-              {products.length === 0
-                ? <tr><td colSpan="4" className="px-6 py-12 text-center text-gray-500 font-bold">No products yet.</td></tr>
-                : products.map(p => (
-                  <tr key={p._id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 font-mono font-bold text-gray-600">{p.code}</td>
-                    <td className="px-6 py-4 font-bold text-gray-900">{p.name}</td>
-                    <td className="px-6 py-4 font-black text-gray-900">৳ {p.price?.toLocaleString()}</td>
-                    <td className="px-6 py-4 text-right flex justify-end gap-2">
-                      <button
-                        onClick={() => handleDelete(p._id)}
-                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              }
-            </>
-          )}
-          </tbody>
-        </table>
+
+      <div className="bg-[#0A0A0A] rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
+            <thead>
+              <tr className="border-b border-white/5 bg-white/[0.02]">
+                {['ID', 'Identifier', 'Attributes', 'Base Value', ''].map((h, i) => (
+                  <th key={i} className={`px-6 py-4 text-xs font-medium uppercase text-zinc-500 tracking-widest ${i === 4 ? 'text-right' : ''}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+            {loading ? <TableSkeleton columns={5} /> : (
+              <>
+                {products.length === 0
+                  ? <tr><td colSpan="5" className="px-6 py-12 text-center text-zinc-600 font-medium">Dataset empty.</td></tr>
+                  : products.map(p => (
+                    <tr key={p._id} className="hover:bg-white/[0.02] transition-colors group">
+                      <td className="px-6 py-4 font-mono text-zinc-400 text-sm">{p.code}</td>
+                      <td className="px-6 py-4 font-medium text-zinc-200">{p.name}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          {p.size && (
+                            <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-[10px] font-medium text-zinc-300 uppercase rounded">
+                              {p.size}
+                            </span>
+                          )}
+                          <span className="text-xs text-zinc-500">{p.color || 'N/A'}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 font-mono text-zinc-200">৳{p.price?.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-right flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => handleEditClick(p)} className="p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleDelete(p._id)} className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                }
+              </>
+            )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {showAddModal && (
-        <Modal title="Add New Product" onClose={() => setShowAdd(false)}>
-          <form onSubmit={handleAddProduct} className="space-y-4">
-            <FormField label="Product Code">
-              <input
-                required type="text" placeholder="e.g. PB-101"
-                className="w-full p-3 border border-gray-200 rounded-xl font-mono font-bold uppercase text-sm outline-none focus:border-gray-900 bg-gray-50"
-                value={newProduct.code}
-                onChange={e => setNewProduct({ ...newProduct, code: e.target.value })}
-              />
+      {showModal && (
+        <Modal title={isEditing ? "Mutate Schema" : "Define Schema"} onClose={closeModal}>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Unique ID (Code)">
+                <input required type="text" className="form-input font-mono uppercase" value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} />
+              </FormField>
+              <FormField label="Descriptor (Name)">
+                <input required type="text" className="form-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+              </FormField>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Scale (Size)">
+                <select className="form-input" value={formData.size} onChange={e => setFormData({ ...formData, size: e.target.value })}>
+                  <option value="S">S</option><option value="M">M</option><option value="L">L</option><option value="XL">XL</option><option value="XXL">XXL</option><option value="FREE SIZE">FREE</option>
+                </select>
+              </FormField>
+              <FormField label="Variant (Color)">
+                <input type="text" className="form-input" value={formData.color} onChange={e => setFormData({ ...formData, color: e.target.value })} />
+              </FormField>
+            </div>
+            <FormField label="Integer Value (৳)">
+              <input required type="number" min="0" className="form-input font-mono" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} />
             </FormField>
-            <FormField label="Product Name">
-              <input
-                required type="text" placeholder="Product name"
-                className="w-full p-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-gray-900 bg-gray-50"
-                value={newProduct.name}
-                onChange={e => setNewProduct({ ...newProduct, name: e.target.value })}
-              />
-            </FormField>
-            <FormField label="Price (৳)">
-              <input
-                required type="number" min="0" placeholder="0"
-                className="w-full p-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-gray-900 bg-gray-50"
-                value={newProduct.price}
-                onChange={e => setNewProduct({ ...newProduct, price: e.target.value })}
-              />
-            </FormField>
-            <div className="flex items-center justify-end gap-3 mt-6 pt-6 border-t border-gray-100">
-              <button
-                type="button" onClick={() => setShowAdd(false)}
-                className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit" disabled={saving}
-                className="px-6 py-2.5 bg-gray-900 text-white text-sm font-bold rounded-xl hover:bg-black transition-colors disabled:opacity-60 flex items-center gap-2"
-              >
+            <div className="flex items-center justify-end gap-3 mt-8">
+              <button type="button" onClick={closeModal} className="px-5 py-2.5 text-sm font-medium text-zinc-400 hover:text-white transition-colors">Cancel</button>
+              <button type="submit" disabled={saving} className="btn-primary">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                Save Product
+                {isEditing ? 'Commit Changes' : 'Execute Injection'}
               </button>
             </div>
           </form>
@@ -642,17 +644,15 @@ const SettingsView = ({ showMessage }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   
-  // State for manual token integration
   const [manualIntegration, setManualIntegration] = useState({ pageId: '', token: '' });
   const [connectingFb, setConnectingFb] = useState(false);
-
   const [waIntegration, setWaIntegration] = useState({ phoneId: '', token: '' });
   const [connectingWa, setConnectingWa] = useState(false);
 
   useEffect(() => {
     api.get('/shop/config')
       .then(res => { if (res.data) setConfig(res.data); })
-      .catch(() => showMessage('Failed to load config.', 'error'))
+      .catch(() => showMessage('Failed to fetch config.', 'error'))
       .finally(() => setLoading(false));
   }, [showMessage]);
 
@@ -660,9 +660,9 @@ const SettingsView = ({ showMessage }) => {
     setSaving(true);
     try {
       await api.put('/shop/config', { systemPrompt: config.systemPrompt });
-      showMessage('AI Brain updated successfully!', 'success');
+      showMessage('Ruleset deployed', 'success');
     } catch {
-      showMessage('Failed to save prompt.', 'error');
+      showMessage('Deployment failed', 'error');
     } finally {
       setSaving(false);
     }
@@ -673,203 +673,120 @@ const SettingsView = ({ showMessage }) => {
     try {
       await api.put('/shop/config', { isAIActive: next });
       setConfig(c => ({ ...c, isAIActive: next }));
-      showMessage(`AI Bot ${next ? 'activated' : 'deactivated'}!`, 'success');
+      showMessage(`Engine state: ${next ? 'ONLINE' : 'OFFLINE'}`, 'success');
     } catch {
-      showMessage('Failed to toggle AI.', 'error');
+      showMessage('State mutation failed', 'error');
     }
   };
 
-  // Facebook Connect
   const handleFacebookConnect = async (e) => {
     e.preventDefault();
-    if (!manualIntegration.pageId || !manualIntegration.token) {
-      return showMessage('Please enter both Page ID and Access Token', 'error');
-    }
+    if (!manualIntegration.pageId || !manualIntegration.token) return showMessage('Parameters missing', 'error');
     setConnectingFb(true);
     try {
-      await api.put('/shop/manual-facebook', {
-        metaPageId: manualIntegration.pageId,
-        metaAccessToken: manualIntegration.token
-      });
-      showMessage('Facebook Page securely connected!', 'success');
+      await api.put('/shop/manual-facebook', { metaPageId: manualIntegration.pageId, metaAccessToken: manualIntegration.token });
+      showMessage('Graph API linked', 'success');
       setConfig(prev => ({ ...prev, metaPageId: manualIntegration.pageId }));
-      setManualIntegration({ pageId: '', token: '' }); // Clear token immediately
+      setManualIntegration({ pageId: '', token: '' }); 
     } catch (err) {
-      showMessage(err.response?.data?.error || 'Failed to connect page.', 'error');
+      showMessage('Link failed', 'error');
     } finally {
       setConnectingFb(false);
     }
   };
 
-  // WhatsApp Connect
   const handleWhatsappConnect = async (e) => {
     e.preventDefault();
-    if (!waIntegration.phoneId || !waIntegration.token) {
-      return showMessage('Please enter both Phone ID and Access Token', 'error');
-    }
+    if (!waIntegration.phoneId || !waIntegration.token) return showMessage('Parameters missing', 'error');
     setConnectingWa(true);
     try {
-      await api.put('/shop/manual-whatsapp', {
-        whatsappPhoneNumberId: waIntegration.phoneId,
-        whatsappAccessToken: waIntegration.token
-      });
-      showMessage('WhatsApp securely connected!', 'success');
+      await api.put('/shop/manual-whatsapp', { whatsappPhoneNumberId: waIntegration.phoneId, whatsappAccessToken: waIntegration.token });
+      showMessage('Cloud API linked', 'success');
       setConfig(prev => ({ ...prev, whatsappPhoneNumberId: waIntegration.phoneId }));
-      setWaIntegration({ phoneId: '', token: '' }); // Clear token immediately
+      setWaIntegration({ phoneId: '', token: '' }); 
     } catch (err) {
-      showMessage(err.response?.data?.error || 'Failed to connect WhatsApp.', 'error');
+      showMessage('Link failed', 'error');
     } finally {
       setConnectingWa(false);
     }
   };
 
-  if (loading) return (
-    <div className="flex justify-center p-12">
-      <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-    </div>
-  );
+  if (loading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-zinc-600" /></div>;
 
   return (
-    <div className="space-y-8 max-w-4xl animate-in fade-in duration-500">
-      <h1 className="text-2xl font-black text-gray-900 mb-6">Integration Hub</h1>
+    <div className="space-y-6 max-w-5xl animate-in fade-in duration-500">
+      <div>
+        <h1 className="text-3xl font-semibold text-zinc-100 tracking-tight">Integrations</h1>
+        <p className="text-sm text-zinc-500 mt-1">Configure external APIs and AI behavior</p>
+      </div>
 
-      {/* Manual Facebook Integration Section */}
-      <form onSubmit={handleFacebookConnect} className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-            <Lock className="w-5 h-5" />
+      <div className="bg-[#0A0A0A] rounded-2xl border border-white/10 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+            <Power className={`w-5 h-5 ${config.isAIActive ? 'text-white' : 'text-zinc-600'}`} />
           </div>
           <div>
-            <h3 className="font-black text-gray-900 text-base">Secure Facebook Integration</h3>
-            <p className="text-xs font-bold text-gray-400">Connect your page via Developer Access Token.</p>
-          </div>
-          {config.metaPageId && (
-            <span className="ml-auto px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black tracking-widest uppercase rounded-full border border-emerald-200">
-              CONNECTED
-            </span>
-          )}
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3 mt-4">
-          <div className="flex-1">
-            <input
-              type="text" required
-              placeholder={config.metaPageId || "e.g. 108357504425089"}
-              className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm font-mono font-bold outline-none focus:border-blue-500 transition-colors"
-              value={manualIntegration.pageId}
-              onChange={e => setManualIntegration({ ...manualIntegration, pageId: e.target.value })}
-            />
-          </div>
-          <div className="flex-1">
-            <input
-              type="password" required
-              placeholder="Paste EAAG... token here"
-              className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm font-mono outline-none focus:border-blue-500 transition-colors"
-              value={manualIntegration.token}
-              onChange={e => setManualIntegration({ ...manualIntegration, token: e.target.value })}
-            />
+            <h3 className="font-medium text-zinc-200">Processing Engine</h3>
+            <p className="text-xs text-zinc-500 mt-1 font-mono">
+              Status: {config.isAIActive ? <span className="text-emerald-400">OPERATIONAL</span> : <span className="text-amber-400">STANDBY</span>}
+            </p>
           </div>
         </div>
-        <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <p className="text-xs font-bold text-gray-400 flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5" /> Your token is encrypted via AES-256 before saving.
-          </p>
-          <button
-            type="submit" disabled={connectingFb}
-            className="w-full sm:w-auto px-6 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black active:scale-95 transition-all shadow-md disabled:opacity-60 flex items-center justify-center gap-2"
-          >
-            {connectingFb && <Loader2 className="w-4 h-4 animate-spin" />}
-            Save FB Connection
-          </button>
-        </div>
-      </form>
-
-      {/* 🔥 NEW: Manual WhatsApp Integration Section */}
-      <form onSubmit={handleWhatsappConnect} className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-green-50 text-green-600 rounded-lg">
-            <MessageCircle className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="font-black text-gray-900 text-base">Secure WhatsApp Integration</h3>
-            <p className="text-xs font-bold text-gray-400">Connect via WhatsApp Cloud API Token.</p>
-          </div>
-          {config.whatsappPhoneNumberId && (
-            <span className="ml-auto px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black tracking-widest uppercase rounded-full border border-emerald-200">
-              CONNECTED
-            </span>
-          )}
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3 mt-4">
-          <div className="flex-1">
-            <input
-              type="text" required
-              placeholder={config.whatsappPhoneNumberId || "Phone Number ID (e.g. 10456...)"}
-              className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm font-mono font-bold outline-none focus:border-green-500 transition-colors"
-              value={waIntegration.phoneId}
-              onChange={e => setWaIntegration({ ...waIntegration, phoneId: e.target.value })}
-            />
-          </div>
-          <div className="flex-1">
-            <input
-              type="password" required
-              placeholder="Paste EAAG... WA token here"
-              className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm font-mono outline-none focus:border-green-500 transition-colors"
-              value={waIntegration.token}
-              onChange={e => setWaIntegration({ ...waIntegration, token: e.target.value })}
-            />
-          </div>
-        </div>
-        <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <p className="text-xs font-bold text-gray-400 flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5" /> Token is encrypted via AES-256.
-          </p>
-          <button
-            type="submit" disabled={connectingWa}
-            className="w-full sm:w-auto px-6 py-2.5 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 active:scale-95 transition-all shadow-md disabled:opacity-60 flex items-center justify-center gap-2"
-          >
-            {connectingWa && <Loader2 className="w-4 h-4 animate-spin" />}
-            Save WA Connection
-          </button>
-        </div>
-      </form>
-
-      {/* AI Toggle */}
-      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
-        <div>
-          <h3 className="font-black text-gray-900 flex items-center gap-2"><Power className="w-5 h-5 text-purple-500" /> AI Bot Active</h3>
-          <p className="text-xs font-bold text-gray-500 mt-1">
-            {config.isAIActive ? 'Bot is currently replying to messages.' : 'Bot is paused — messages are not being answered.'}
-          </p>
-        </div>
-        <button
-          onClick={toggleAI}
-          className={`relative w-12 h-6 rounded-full transition-colors ${config.isAIActive ? 'bg-emerald-500' : 'bg-gray-300'}`}
-        >
-          <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${config.isAIActive ? 'left-7' : 'left-1'}`} />
+        <button onClick={toggleAI} className={`relative w-14 h-7 rounded-full transition-all duration-300 focus:outline-none ${config.isAIActive ? 'bg-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' : 'bg-zinc-800 border border-white/10'}`}>
+          <span className={`absolute top-1 w-5 h-5 rounded-full transition-all duration-300 ${config.isAIActive ? 'left-8 bg-black' : 'left-1 bg-zinc-500'}`} />
         </button>
       </div>
 
-      {/* System Prompt */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-100 bg-gray-50">
-          <h3 className="font-black text-gray-900 flex items-center gap-2">Thirdwave AI Brain</h3>
-          <p className="text-xs font-bold text-amber-600 mt-1 flex items-center gap-1">
-            <Info className="w-3.5 h-3.5" /> ⚠️ Do not remove the [SYNC: ...] extraction block from the prompt.
-          </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <form onSubmit={handleFacebookConnect} className="bg-[#0A0A0A] border border-white/10 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity"><Lock className="w-24 h-24" /></div>
+          <div className="relative">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-medium text-zinc-200 flex items-center gap-2"><Lock className="w-4 h-4 text-zinc-500" /> Graph API (Meta)</h3>
+              {config.metaPageId && <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold tracking-widest uppercase rounded">Bound</span>}
+            </div>
+            <div className="space-y-4">
+              <input type="text" required placeholder={config.metaPageId || "Resource ID"} className="form-input font-mono" value={manualIntegration.pageId} onChange={e => setManualIntegration({ ...manualIntegration, pageId: e.target.value })} />
+              <input type="password" required placeholder="Bearer Token" className="form-input font-mono" value={manualIntegration.token} onChange={e => setManualIntegration({ ...manualIntegration, token: e.target.value })} />
+              <button type="submit" disabled={connectingFb} className="btn-secondary w-full justify-center">
+                {connectingFb ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Inject Credentials'}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <form onSubmit={handleWhatsappConnect} className="bg-[#0A0A0A] border border-white/10 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity"><MessageCircle className="w-24 h-24" /></div>
+          <div className="relative">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-medium text-zinc-200 flex items-center gap-2"><MessageCircle className="w-4 h-4 text-zinc-500" /> WA Cloud API</h3>
+              {config.whatsappPhoneNumberId && <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold tracking-widest uppercase rounded">Bound</span>}
+            </div>
+            <div className="space-y-4">
+              <input type="text" required placeholder={config.whatsappPhoneNumberId || "Node ID"} className="form-input font-mono" value={waIntegration.phoneId} onChange={e => setWaIntegration({ ...waIntegration, phoneId: e.target.value })} />
+              <input type="password" required placeholder="Bearer Token" className="form-input font-mono" value={waIntegration.token} onChange={e => setWaIntegration({ ...waIntegration, token: e.target.value })} />
+              <button type="submit" disabled={connectingWa} className="btn-secondary w-full justify-center">
+                {connectingWa ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Inject Credentials'}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div className="bg-[#0A0A0A] rounded-2xl border border-white/10 shadow-xl overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+          <h3 className="font-medium text-sm text-zinc-200">System Instruction (LLM)</h3>
+          <p className="text-[10px] font-mono text-zinc-500 flex items-center gap-1.5 uppercase tracking-wider"><Info className="w-3.5 h-3.5" /> Preserve [SYNC] block</p>
         </div>
         <textarea
-          className="w-full h-[380px] p-6 bg-white text-gray-800 font-mono text-xs focus:ring-inset focus:ring-2 focus:ring-purple-500 outline-none resize-none transition-all leading-relaxed"
+          className="w-full h-[400px] p-6 bg-transparent text-zinc-300 font-mono text-[13px] leading-relaxed outline-none resize-none focus:ring-1 focus:ring-white/20 selection:bg-white/20"
           value={config.systemPrompt || ''}
           onChange={e => setConfig({ ...config, systemPrompt: e.target.value })}
           spellCheck={false}
         />
-        <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
-          <button
-            onClick={savePrompt} disabled={saving}
-            className="flex items-center justify-center gap-2 px-7 py-3 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-black active:scale-95 transition-all disabled:opacity-60"
-          >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Deploy Updates
+        <div className="px-6 py-4 border-t border-white/5 bg-white/[0.02] flex justify-end">
+          <button onClick={savePrompt} disabled={saving} className="btn-primary">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Compile & Deploy
           </button>
         </div>
       </div>
@@ -881,12 +798,12 @@ const SettingsView = ({ showMessage }) => {
 //  Shared UI Primitives
 // ══════════════════════════════════════════════════════════════
 const Modal = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-      <div className="flex items-center justify-between p-6 border-b border-gray-100">
-        <h2 className="text-xl font-black text-gray-900">{title}</h2>
-        <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-          <X className="w-5 h-5" />
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="bg-[#0A0A0A] border border-white/10 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
+        <h2 className="text-base font-medium text-zinc-200">{title}</h2>
+        <button onClick={onClose} className="p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+          <X className="w-4 h-4" />
         </button>
       </div>
       <div className="p-6">
@@ -898,13 +815,13 @@ const Modal = ({ title, onClose, children }) => (
 
 const FormField = ({ label, children }) => (
   <div>
-    <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-1.5">{label}</label>
+    <label className="block text-[10px] font-medium text-zinc-500 uppercase tracking-widest mb-2">{label}</label>
     {children}
   </div>
 );
 
 // ══════════════════════════════════════════════════════════════
-//  Dashboard Layout
+//  Dashboard Layout (The "Linear" Look)
 // ══════════════════════════════════════════════════════════════
 const DashboardLayout = () => {
   const { user, logout }  = useContext(AuthContext);
@@ -915,66 +832,116 @@ const DashboardLayout = () => {
   const showMessage = useCallback((msg, type) => setToast({ message: msg, type }), []);
   
   const navItems = [
-    ...(isAdmin ? [{ id: 'superadmin', label: 'Super Admin', icon: Shield }] : []),
-    { id: 'dashboard', label: 'Overview',    icon: LayoutDashboard },
-    { id: 'orders',    label: 'Orders',      icon: ShoppingCart    },
-    { id: 'inventory', label: 'Inventory',   icon: Package         },
-    { id: 'settings',  label: 'Integration', icon: Settings        },
+    ...(isAdmin ? [{ id: 'superadmin', label: 'Command', icon: Shield }] : []),
+    { id: 'dashboard', label: 'Overview',    icon: Activity },
+    { id: 'orders',    label: 'Transactions',icon: ShoppingCart },
+    { id: 'inventory', label: 'Models',      icon: Package },
+    { id: 'settings',  label: 'Integration', icon: Settings },
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] flex flex-col md:flex-row font-sans selection:bg-purple-200">
+    <div className="min-h-screen bg-black text-zinc-200 flex flex-col md:flex-row font-sans selection:bg-white/20">
+      {/* Global Styles for Inputs & Buttons within this scope */}
+      <style>{`
+        .form-input {
+          width: 100%;
+          padding: 0.75rem 1rem;
+          background-color: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 0.5rem;
+          font-size: 0.875rem;
+          color: #e4e4e7;
+          outline: none;
+          transition: all 0.2s;
+        }
+        .form-input:focus {
+          border-color: rgba(255, 255, 255, 0.3);
+          background-color: rgba(255, 255, 255, 0.05);
+        }
+        .btn-primary {
+          padding: 0.625rem 1.25rem;
+          background-color: #ededed;
+          color: #000;
+          font-size: 0.875rem;
+          font-weight: 500;
+          border-radius: 0.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          transition: all 0.2s;
+        }
+        .btn-primary:hover:not(:disabled) {
+          background-color: #fff;
+          box-shadow: 0 0 15px rgba(255,255,255,0.2);
+        }
+        .btn-secondary {
+          padding: 0.625rem 1.25rem;
+          background-color: rgba(255,255,255,0.05);
+          color: #e4e4e7;
+          border: 1px solid rgba(255,255,255,0.1);
+          font-size: 0.875rem;
+          font-weight: 500;
+          border-radius: 0.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          transition: all 0.2s;
+        }
+        .btn-secondary:hover:not(:disabled) {
+          background-color: rgba(255,255,255,0.1);
+        }
+      `}</style>
+      
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       
-      {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-white border-r border-gray-100 flex flex-col shrink-0 sticky top-0 md:h-screen z-40">
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center text-white font-black text-lg shadow-sm">
+      {/* Sleek Minimal Sidebar */}
+      <aside className="w-full md:w-[240px] bg-[#050505] border-r border-white/5 flex flex-col shrink-0 sticky top-0 md:h-screen z-40">
+        <div className="px-6 py-8 flex items-center gap-3">
+          <div className="w-8 h-8 bg-white rounded flex items-center justify-center text-black font-black text-sm">
             T
           </div>
           <div>
-            <h1 className="font-black text-gray-900 tracking-tight text-lg">Thirdwave CRM</h1>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-              {isAdmin ? 'ADMIN' : user?.name}
+            <h1 className="font-semibold text-zinc-200 tracking-tight text-sm">Thirdwave CRM</h1>
+            <p className="text-[9px] font-mono text-zinc-500 uppercase mt-1 tracking-widest">
+              {isAdmin ? 'ROOT ADMIN' : user?.name}
             </p>
           </div>
         </div>
         
-        <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto">
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           {navItems.map(({ id, label, icon: Icon }) => {
-            const active       = tab === id;
-            const isSuperAdmin = id === 'superadmin';
+            const active = tab === id;
             return (
               <button
                 key={id}
                 onClick={() => setTab(id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all group ${
                   active
-                    ? isSuperAdmin
-                        ? 'bg-purple-600 text-white shadow-sm shadow-purple-200'
-                        : 'bg-gray-950 text-white'
-                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-white/10 text-white'
+                    : 'text-zinc-500 hover:text-zinc-300'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${active ? (isSuperAdmin ? 'text-purple-200' : 'text-gray-300') : ''}`} />
-                {label}
+                <div className="flex items-center gap-3">
+                  <Icon className={`w-4 h-4 ${active ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-400'}`} />
+                  {label}
+                </div>
               </button>
             );
           })}
         </nav>
         
-        <div className="p-4 border-t border-gray-50 mt-auto">
+        <div className="p-4 mt-auto">
           <button
             onClick={logout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-red-500 hover:bg-red-50 transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-medium text-zinc-500 hover:text-white hover:bg-white/5 transition-colors"
           >
-            <LogOut className="w-4 h-4" /> Logout
+            <LogOut className="w-3.5 h-3.5" /> Terminate Session
           </button>
         </div>
       </aside>
 
-      {/* Main */}
-      <main className="flex-1 p-4 sm:p-8 max-w-6xl mx-auto w-full">
+      {/* Main Content Area */}
+      <main className="flex-1 p-5 sm:p-10 max-w-6xl mx-auto w-full">
         {tab === 'superadmin' && isAdmin   && <SuperAdminView  showMessage={showMessage} />}
         {tab === 'dashboard'               && <DashboardView   showMessage={showMessage} />}
         {tab === 'orders'                  && <OrdersView      showMessage={showMessage} />}
@@ -991,8 +958,8 @@ const DashboardLayout = () => {
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
   if (loading) return (
-    <div className="h-screen flex items-center justify-center bg-gray-50">
-      <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+    <div className="h-screen flex items-center justify-center bg-black">
+      <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
     </div>
   );
   return user ? children : <Navigate to="/auth" replace />;

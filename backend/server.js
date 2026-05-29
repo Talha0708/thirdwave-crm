@@ -1,652 +1,976 @@
-/**
- * ============================================================
- * THIRDWAVE SAAS — Master Backend Server (Enterprise Scale)
- * Architecture: Meta Webhook + WhatsApp Cloud API + Gemini AI
- * ============================================================
- */
-'use strict';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import {
+  LayoutDashboard, ShoppingCart, Package, Settings,
+  Plus, Save, Power, DollarSign, Info, X, CheckCircle,
+  Loader2, Trash2, Edit2, LogOut, Shield, Users, Activity,
+  RefreshCw, TrendingUp, Zap, KeyRound, Lock, MessageCircle
+} from 'lucide-react';
+import { AuthProvider, AuthContext } from './context/AuthContext';
+import AuthPage from './pages/AuthPage'; 
+import api from './api'; 
 
-require('dotenv').config();
-
-// DNS Fix: Forces Google DNS to resolve MongoDB Atlas SRV records
-const dns = require('dns');
-dns.setServers(['8.8.8.8', '8.8.4.4']);
-
-const express    = require('express');
-const mongoose   = require('mongoose');
-const axios      = require('axios');
-const cors       = require('cors');
-const helmet     = require('helmet');
-const bcrypt     = require('bcryptjs');
-const jwt        = require('jsonwebtoken');
-const rateLimit  = require('express-rate-limit');
-const crypto     = require('crypto');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-
-const { User, Shop, Product, Order, ChatHistory } = require('./models');
-
-const app = express();
-app.use(helmet());
-
-// ══════════════════════════════════════════════════════════════
-//  0. AES-256 Encryption Logic (Enterprise Security)
-// ══════════════════════════════════════════════════════════════
-const ALGORITHM = 'aes-256-cbc';
-const ENCRYPTION_KEY = crypto.scryptSync(process.env.JWT_SECRET || 'thirdwave_secure_key_2026', 'salt', 32);
-
-function encryptToken(text) {
-    if (!text) return text;
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return `${iv.toString('hex')}:${encrypted}`;
-}
-
-function decryptToken(hash) {
-    if (!hash) return null;
-    try {
-        if (!hash.includes(':')) return hash;
-        const parts = hash.split(':');
-        const iv = Buffer.from(parts.shift(), 'hex');
-        const encryptedText = parts.join(':');
-        const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
-        let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
-        return decrypted;
-    } catch (e) {
-        console.error('❌ Decryption failed:', e.message);
-        return hash; 
-    }
-}
-
-// ══════════════════════════════════════════════════════════════
-//  1. Middlewares & CORS
-// ══════════════════════════════════════════════════════════════
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',');
-
-app.use(cors({
-    origin: (origin, callback) => {
-        if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
-        callback(new Error('Not allowed by CORS'));
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    credentials: true,
-}));
-
-app.use(express.json({ limit: '1mb' }));
-app.use('/api/', rateLimit({ windowMs: 60_000, max: 200, standardHeaders: true, legacyHeaders: false }));
-
-// ══════════════════════════════════════════════════════════════
-//  2. Database Connection
-// ══════════════════════════════════════════════════════════════
-async function connectDB() {
-    try {
-        await mongoose.connect(process.env.MONGO_URI, {
-            family: 4,
-            serverSelectionTimeoutMS: 15_000,
-            socketTimeoutMS:          45_000,
-        });
-        console.log('✅ MongoDB Connected (SaaS Ready - Encrypted)');
-        await Shop.collection.createIndex({ metaPageId: 1 }, { background: true });
-        await Shop.collection.createIndex({ whatsappPhoneNumberId: 1 }, { background: true });
-    } catch (err) {
-        console.error('❌ DB Connection Error:', err.message);
-        process.exit(1); 
-    }
-}
-connectDB();
-
-// ══════════════════════════════════════════════════════════════
-//  3. Auth & Role Middlewares
-// ══════════════════════════════════════════════════════════════
-const authMiddleware = async (req, res, next) => {
-    try {
-        const token = req.headers.authorization?.split(' ')[1];
-        if (!token) return res.status(401).json({ error: 'Access denied' });
-
-        req.user = jwt.verify(token, process.env.JWT_SECRET);
-
-        const userDoc = await User.findById(req.user.id).select('isActive').lean();
-        if (!userDoc?.isActive) return res.status(403).json({ error: 'Account suspended' });
-
-        const shop = await Shop.findOne({ userId: req.user.id }).select('_id').lean();
-        if (shop) req.shopId = shop._id;
-
-        next();
-    } catch (err) {
-        res.status(401).json({ error: 'Invalid token' });
-    }
+// ── Enterprise Plan Config ────────────────────────────────────
+const PLAN_LIMITS = { Starter: 3000, Business: 8000, Enterprise: null };
+const PLAN_LABELS = {
+  Starter:    { price: '৳500',   desc: '3k Msgs/mo' },
+  Business:   { price: '৳1,200', desc: '8k Msgs/mo' },
+  Enterprise: { price: '৳3,000+', desc: 'Unlimited'  },
 };
 
-const adminMiddleware = (req, res, next) => {
-    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
-    next();
+// ── Available Sizes Array ─────────────────────────────────────
+const AVAILABLE_SIZES = ['S', 'M', 'L', 'XL', 'XXL', '3XL', 'FREE SIZE'];
+
+// ── Toast Notification ────────────────────────────────────────
+const Toast = ({ message, type, onClose }) => {
+  if (!message) return null;
+  const isError = type === 'error';
+  useEffect(() => {
+    const t = setTimeout(onClose, 3500);
+    return () => clearTimeout(t);
+  }, [message, onClose]);
+  return (
+    <div className={`fixed top-6 right-6 z-[9999] flex items-center gap-3 px-5 py-4 rounded-xl border backdrop-blur-xl text-sm font-medium transition-all duration-300 transform translate-y-0
+      ${isError ? 'bg-red-950/80 border-red-900/50 text-red-200 shadow-[0_0_30px_rgba(220,38,38,0.15)]' : 'bg-zinc-900/80 border-zinc-800/50 text-zinc-200 shadow-[0_0_30px_rgba(255,255,255,0.05)]'}`}>
+      {isError ? <X className="w-5 h-5 text-red-400" /> : <CheckCircle className="w-5 h-5 text-zinc-400" />}
+      {message}
+    </div>
+  );
+};
+
+// ── Skeleton Loader ───────────────────────────────────────────
+const TableSkeleton = ({ columns }) => (
+  <>
+    {[1, 2, 3, 4].map(r => (
+      <tr key={r} className="border-b border-white/5">
+        {Array(columns).fill(0).map((_, c) => (
+          <td key={c} className="px-6 py-5">
+            <div className="h-4 bg-white/5 rounded animate-pulse w-2/3"></div>
+          </td>
+        ))}
+      </tr>
+    ))}
+  </>
+);
+
+// ── Stat Card ─────────────────────────────────────────────────
+const StatCard = ({ icon, label, value, loading }) => {
+  return (
+    <div className="group relative rounded-2xl p-6 bg-[#0A0A0A] border border-white/10 hover:border-white/20 transition-all duration-300 overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="relative flex items-center justify-between">
+        <div>
+          <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-2">{label}</p>
+          {loading ? <Loader2 className="w-6 h-6 animate-spin text-zinc-600" /> : <h3 className="text-3xl font-semibold text-zinc-100 tracking-tight">{value}</h3>}
+        </div>
+        <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400 group-hover:text-white group-hover:scale-110 transition-all duration-300">
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // ══════════════════════════════════════════════════════════════
-//  4. Authentication Route
+//  Super Admin View
 // ══════════════════════════════════════════════════════════════
-app.post('/api/auth/login', async (req, res) => {
+const SuperAdminView = ({ showMessage }) => {
+  const [stats, setStats]               = useState({ totalUsers: 0, totalShops: 0, activeShops: 0 });
+  const [shops, setShops]               = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [showCreateModal, setShowCreate] = useState(false);
+  const [clientData, setClientData]     = useState({ name: '', email: '', password: '', shopName: '', plan: 'Starter' });
+  const [creating, setCreating]         = useState(false);
+  const [selectedShop, setSelectedShop]   = useState(null);
+  const [showSubModal, setShowSubModal]   = useState(false);
+  const [selectedAction, setSelectedAction] = useState('RENEW');
+  const [newPlan, setNewPlan]             = useState('Starter');
+  const [updating, setUpdating]           = useState(false);
+
+  const fetchAdminData = useCallback(async () => {
+    setLoading(true);
     try {
-        const { email, password } = req.body;
-        if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-
-        const user = await User.findOne({ email });
-        if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-
-        let isMatch = false;
-        try { isMatch = await bcrypt.compare(password, user.password); } catch (_) {}
-        if (!isMatch) isMatch = (password === user.password);
-
-        if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
-        if (!user.isActive) return res.status(403).json({ error: 'Account suspended by admin' });
-
-        const token = jwt.sign(
-            { id: user._id, role: user.role },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-        );
-
-        console.log('✅ Login success:', email);
-        res.json({ token, user: { name: user.name, email: user.email, role: user.role } });
-    } catch (err) {
-        res.status(500).json({ error: 'Server error during login' });
+      const [statsRes, shopsRes] = await Promise.all([
+        api.get('/admin/system-stats'),
+        api.get('/admin/shops'),
+      ]);
+      setStats(statsRes.data);
+      setShops(shopsRes.data);
+    } catch {
+      showMessage('Failed to load admin data.', 'error');
+    } finally {
+      setLoading(false);
     }
-});
+  }, [showMessage]);
 
-// ══════════════════════════════════════════════════════════════
-//  5. Super Admin Routes
-// ══════════════════════════════════════════════════════════════
-app.post('/api/admin/create-client', authMiddleware, adminMiddleware, async (req, res) => {
+  useEffect(() => { fetchAdminData(); }, [fetchAdminData]);
+
+  const handleCreateClient = async (e) => {
+    e.preventDefault();
+    setCreating(true);
     try {
-        const { name, email, password, shopName, plan } = req.body;
-        const existing = await User.findOne({ email }).lean();
-        if (existing) return res.status(409).json({ error: 'Email already registered' });
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const user = await User.create({ name, email, password: hashedPassword });
-        await Shop.create({ userId: user._id, shopName, plan: plan || 'Starter' });
-
-        res.status(201).json({ message: 'Client created successfully' });
+      await api.post('/admin/create-client', clientData);
+      showMessage('Client account created successfully!', 'success');
+      setShowCreate(false);
+      setClientData({ name: '', email: '', password: '', shopName: '', plan: 'Starter' });
+      fetchAdminData();
     } catch (err) {
-        res.status(400).json({ error: 'Failed to create client', details: err.message });
+      showMessage(err.response?.data?.error || 'Failed to create client', 'error');
+    } finally {
+      setCreating(false);
     }
-});
+  };
 
-app.put('/api/admin/shops/:id/toggle', authMiddleware, adminMiddleware, async (req, res) => {
+  const toggleShopStatus = async (id) => {
     try {
-        const shop = await Shop.findById(req.params.id);
-        shop.isActive = !shop.isActive;
-        await shop.save();
-        await User.findByIdAndUpdate(shop.userId, { isActive: shop.isActive });
-        res.json({ message: `Shop is now ${shop.isActive ? 'Active' : 'Suspended'}`, isActive: shop.isActive });
+      const res = await api.put(`/admin/shops/${id}/toggle`);
+      showMessage(res.data.message, 'success');
+      setShops(prev => prev.map(s => s._id === id ? { ...s, isActive: res.data.isActive } : s));
+    } catch {
+      showMessage('Failed to toggle status', 'error');
+    }
+  };
+
+  const handleSubscriptionUpdate = async (e) => {
+    e.preventDefault();
+    setUpdating(true);
+    try {
+      await api.put(`/admin/shops/${selectedShop._id}/subscription`, {
+        action:  selectedAction,
+        newPlan: selectedAction === 'UPGRADE' ? newPlan : undefined,
+      });
+      showMessage(`Subscription updated: ${selectedAction}`, 'success');
+      setShowSubModal(false);
+      fetchAdminData();
     } catch (err) {
-        res.status(500).json({ error: 'Toggle failed' });
+      showMessage(err.response?.data?.error || 'Subscription update failed', 'error');
+    } finally {
+      setUpdating(false);
     }
-});
+  };
 
-app.put('/api/admin/shops/:id/subscription', authMiddleware, adminMiddleware, async (req, res) => {
-    try {
-        const { action, newPlan } = req.body;
-        const shop = await Shop.findById(req.params.id);
+  const openSubModal = (shop) => {
+    setSelectedShop(shop);
+    setNewPlan(shop.plan);
+    setSelectedAction('RENEW');
+    setShowSubModal(true);
+  };
 
-        if (action === 'UPGRADE') {
-            shop.plan = newPlan;
-            shop.monthlyMessageCount = 0;
-            shop.resetDate = new Date();
-        } else if (action === 'RENEW') {
-            shop.monthlyMessageCount = 0;
-            shop.resetDate = new Date();
-        }
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold text-zinc-100 tracking-tight">Command Center</h1>
+          <p className="text-sm text-zinc-500 mt-1">Manage infrastructure and deployments</p>
+        </div>
+        <button onClick={() => setShowCreate(true)} className="bg-white text-black px-5 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-zinc-200 transition-colors">
+          <Plus className="w-4 h-4" /> Provision Workspace
+        </button>
+      </div>
 
-        await shop.save();
-        res.json({ message: `Shop updated: ${action}`, shop });
-    } catch (err) {
-        res.status(500).json({ error: 'Subscription update failed' });
-    }
-});
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <StatCard loading={loading} icon={<Users className="w-5 h-5" />} label="Total Identities" value={stats.totalUsers} />
+        <StatCard loading={loading} icon={<Package className="w-5 h-5" />} label="Workspaces" value={stats.totalShops} />
+        <StatCard loading={loading} icon={<Zap className="w-5 h-5 text-emerald-400" />} label="Active AI Instances" value={stats.activeShops} />
+      </div>
 
-app.get('/api/admin/system-stats', authMiddleware, adminMiddleware, async (req, res) => {
-    const [totalUsers, totalShops, activeShops] = await Promise.all([
-        User.countDocuments({ role: 'user' }),
-        Shop.countDocuments(),
-        Shop.countDocuments({ isAIActive: true, isActive: true }),
-    ]);
-    res.json({ totalUsers, totalShops, activeShops });
-});
+      <div className="bg-[#0A0A0A] rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
+        <div className="px-6 py-5 border-b border-white/10 flex items-center gap-3">
+          <Shield className="w-4 h-4 text-zinc-500" />
+          <h2 className="text-sm font-medium text-zinc-300">Client Instances</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-white/5 bg-white/[0.02]">
+                {['Organization', 'Resource Usage', 'Status', 'Configuration'].map(h => (
+                  <th key={h} className="px-6 py-4 text-xs font-medium uppercase text-zinc-500 tracking-widest">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+            {loading ? <TableSkeleton columns={4} /> : (
+              <>
+                {shops.length === 0 && (
+                  <tr><td colSpan="4" className="px-6 py-12 text-center text-zinc-600 font-medium">No instances provisioned.</td></tr>
+                )}
+                {shops.map(shop => {
+                  const limit        = PLAN_LIMITS[shop.plan];
+                  const usagePct     = limit ? Math.min(100, (shop.monthlyMessageCount / limit) * 100) : 0;
+                  const isWarning    = usagePct >= 90;
+                  return (
+                    <tr key={shop._id} className="hover:bg-white/[0.02] transition-colors group">
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-zinc-200">{shop.shopName}</p>
+                        <p className="text-xs text-zinc-500 mt-1 font-mono">{shop.userId?.email}</p>
+                      </td>
+                      <td className="px-6 py-4 w-1/3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="px-2 py-1 bg-white/10 text-zinc-300 text-[10px] font-medium uppercase tracking-widest rounded border border-white/5">
+                            {shop.plan}
+                          </span>
+                          <span className={`text-xs font-mono ${isWarning ? 'text-red-400' : 'text-zinc-500'}`}>
+                            {shop.monthlyMessageCount.toLocaleString()} / {limit ? limit.toLocaleString() : '∞'}
+                          </span>
+                        </div>
+                        {limit && (
+                          <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${isWarning ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-white shadow-[0_0_10px_rgba(255,255,255,0.3)]'}`} style={{ width: `${usagePct}%` }} />
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <button onClick={() => toggleShopStatus(shop._id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all border ${shop.isActive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${shop.isActive ? 'bg-emerald-400' : 'bg-red-400'}`}></span>
+                          {shop.isActive ? 'Active' : 'Suspended'}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button onClick={() => openSubModal(shop)} className="px-4 py-2 bg-transparent border border-white/10 text-zinc-400 rounded-lg text-xs font-medium hover:bg-white/5 hover:text-white hover:border-white/20 transition-all">
+                          Configure
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </>
+            )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-app.get('/api/admin/shops', authMiddleware, adminMiddleware, async (req, res) => {
-    const shops = await Shop.find().populate('userId', 'name email isActive').sort({ createdAt: -1 }).lean();
-    res.json(shops);
-});
+      {showCreateModal && (
+        <Modal title="Deploy Workspace" onClose={() => setShowCreate(false)}>
+          <form onSubmit={handleCreateClient} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField label="Owner Name">
+                <input required type="text" className="form-input" value={clientData.name} onChange={e => setClientData({ ...clientData, name: e.target.value })} />
+              </FormField>
+              <FormField label="Workspace ID (Shop Name)">
+                <input required type="text" className="form-input" value={clientData.shopName} onChange={e => setClientData({ ...clientData, shopName: e.target.value })} />
+              </FormField>
+            </div>
+            <FormField label="Root Email">
+              <input required type="email" className="form-input" value={clientData.email} onChange={e => setClientData({ ...clientData, email: e.target.value })} />
+            </FormField>
+            <FormField label="Access Key (Password)">
+              <input required type="text" className="form-input font-mono" value={clientData.password} onChange={e => setClientData({ ...clientData, password: e.target.value })} />
+            </FormField>
+            <FormField label="Compute Tier">
+              <select className="form-input" value={clientData.plan} onChange={e => setClientData({ ...clientData, plan: e.target.value })}>
+                {Object.entries(PLAN_LABELS).map(([k, v]) => <option key={k} value={k} className="bg-[#111]">{k} ({v.price} / {v.desc})</option>)}
+              </select>
+            </FormField>
+            <div className="pt-4">
+              <button type="submit" disabled={creating} className="btn-primary w-full justify-center">
+                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />} Initialize Deployment
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
-// ══════════════════════════════════════════════════════════════
-//  6. Client Dashboard & Integration Routes
-// ══════════════════════════════════════════════════════════════
-app.get('/api/shop/config', authMiddleware, async (req, res) => {
-    try {
-        const shop = await Shop.findById(req.shopId).lean();
-        res.json({
-            isAIActive:   shop.isAIActive,
-            systemPrompt: shop.systemPrompt,
-            metaPageId:   shop.metaPageId,
-            whatsappPhoneNumberId: shop.whatsappPhoneNumberId,
-            plan:         shop.plan,
-            usage:        shop.monthlyMessageCount,
-        });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to fetch config' });
-    }
-});
-
-app.put('/api/shop/config', authMiddleware, async (req, res) => {
-    try {
-        const { isAIActive, systemPrompt } = req.body;
-        const update = {};
-        if (typeof isAIActive !== 'undefined') update.isAIActive = isAIActive;
-        if (typeof systemPrompt !== 'undefined') update.systemPrompt = systemPrompt;
-
-        const shop = await Shop.findByIdAndUpdate(req.shopId, update, { new: true }).lean();
-        res.json(shop);
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to update config' });
-    }
-});
-
-// Facebook Messenger Manual Integration
-app.put('/api/shop/manual-facebook', authMiddleware, async (req, res) => {
-    try {
-        const { metaPageId, metaAccessToken } = req.body;
-        if (!metaPageId || !metaAccessToken) return res.status(400).json({ error: 'Page ID and Access Token are required' });
-        
-        const encryptedToken = encryptToken(metaAccessToken.trim());
-        await Shop.findByIdAndUpdate(
-            req.shopId, 
-            { metaPageId: metaPageId.trim(), metaAccessToken: encryptedToken, isAIActive: true }, 
-            { new: true }
-        ).lean();
-
-        res.json({ message: 'Manual Facebook Integration Successful!' });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to save manual token' });
-    }
-});
-
-// WhatsApp Cloud API Manual Integration
-app.put('/api/shop/manual-whatsapp', authMiddleware, async (req, res) => {
-    try {
-        const { whatsappPhoneNumberId, whatsappAccessToken } = req.body;
-        if (!whatsappPhoneNumberId || !whatsappAccessToken) return res.status(400).json({ error: 'Phone Number ID and Access Token are required' });
-        
-        const encryptedToken = encryptToken(whatsappAccessToken.trim());
-        await Shop.findByIdAndUpdate(
-            req.shopId, 
-            { whatsappPhoneNumberId: whatsappPhoneNumberId.trim(), whatsappAccessToken: encryptedToken, isAIActive: true }, 
-            { new: true }
-        ).lean();
-
-        res.json({ message: 'WhatsApp Integration Successful!' });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to save WhatsApp token' });
-    }
-});
-
-// Products & Orders
-app.get('/api/products', authMiddleware, async (req, res) => { res.json(await Product.find({ shopId: req.shopId }).sort({ createdAt: -1 }).lean()); });
-app.post('/api/products', authMiddleware, async (req, res) => { res.status(201).json(await Product.create({ ...req.body, shopId: req.shopId })); });
-app.put('/api/products/:id', authMiddleware, async (req, res) => {
-    try {
-        const updatedProduct = await Product.findOneAndUpdate(
-            { _id: req.params.id, shopId: req.shopId },
-            req.body,
-            { new: true, runValidators: true }
-        );
-        if (!updatedProduct) return res.status(404).json({ error: 'Product not found' });
-        res.status(200).json(updatedProduct);
-    } catch (error) { res.status(500).json({ error: 'Failed to update product' }); }
-});
-app.delete('/api/products/:id', authMiddleware, async (req, res) => { await Product.findOneAndDelete({ _id: req.params.id, shopId: req.shopId }); res.json({ success: true }); });
-
-app.get('/api/orders', authMiddleware, async (req, res) => { res.json({ orders: await Order.find({ shopId: req.shopId }).sort({ createdAt: -1 }).lean() }); });
-app.put('/api/orders/:id/status', authMiddleware, async (req, res) => {
-    const order = await Order.findOneAndUpdate({ _id: req.params.id, shopId: req.shopId }, { status: req.body.status }, { new: true });
-    res.json(order);
-});
-
-app.get('/api/analytics', authMiddleware, async (req, res) => {
-    const [totalOrders, revenueAgg] = await Promise.all([
-        Order.countDocuments({ shopId: req.shopId }),
-        Order.aggregate([{ $match: { shopId: req.shopId } }, { $group: { _id: null, total: { $sum: '$totalPrice' } } }]),
-    ]);
-    res.json({ totalOrders, totalRevenue: revenueAgg[0]?.total ?? 0 });
-});
-
-// ══════════════════════════════════════════════════════════════
-//  7. AI Engine Logic (Gemini 3.1 Flash-Lite)
-// ══════════════════════════════════════════════════════════════
-const PLAN_LIMITS = {
-    Starter:    { rpm: 5,  maxMessages: 3_000   },
-    Business:   { rpm: 10, maxMessages: 8_000   },
-    Enterprise: { rpm: 10, maxMessages: 999_999 },
+      {showSubModal && selectedShop && (
+        <Modal title="Configure Infrastructure" onClose={() => setShowSubModal(false)}>
+          <form onSubmit={handleSubscriptionUpdate} className="space-y-6">
+            <div className="p-4 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+              <div>
+                <p className="font-medium text-zinc-200">{selectedShop.shopName}</p>
+                <p className="text-xs text-zinc-500 mt-1 font-mono">{selectedShop.plan} &bull; {selectedShop.monthlyMessageCount.toLocaleString()} reqs</p>
+              </div>
+            </div>
+            <div className="space-y-3">
+            {[
+              { value: 'RENEW',   icon: <RefreshCw className="w-4 h-4 text-zinc-400" />, label: 'Reset Cycle',      desc: 'Zero out current usage counters.' },
+              { value: 'UPGRADE', icon: <TrendingUp className="w-4 h-4 text-zinc-400" />,  label: 'Scale Tier',   desc: 'Adjust compute and usage limits.' },
+              { value: 'TOPUP',   icon: <Activity className="w-4 h-4 text-zinc-400" />,           label: 'Burst Quota',       desc: 'Add emergency allocations.' },
+            ].map(opt => (
+              <label key={opt.value} className={`flex items-start gap-4 p-4 border rounded-xl cursor-pointer transition-all ${selectedAction === opt.value ? 'border-white/40 bg-white/10' : 'border-white/5 hover:border-white/20 hover:bg-white/[0.02]'}`}>
+                <input type="radio" name="action" value={opt.value} checked={selectedAction === opt.value} onChange={e => setSelectedAction(e.target.value)} className="mt-1 w-4 h-4 accent-white bg-transparent border-white/20" />
+                <div>
+                  <div className="flex items-center gap-2 font-medium text-sm text-zinc-200">{opt.icon} {opt.label}</div>
+                  <p className="text-xs text-zinc-500 mt-1">{opt.desc}</p>
+                </div>
+              </label>
+            ))}
+            </div>
+            {selectedAction === 'UPGRADE' && (
+              <div className="animate-in slide-in-from-top-2 duration-200">
+                <select value={newPlan} onChange={e => setNewPlan(e.target.value)} className="form-input">
+                  {Object.entries(PLAN_LABELS).map(([k, v]) => <option key={k} value={k} className="bg-[#111]">{k} Tier — {v.price}</option>)}
+                </select>
+              </div>
+            )}
+            <div className="pt-2">
+              <button type="submit" disabled={updating} className="btn-primary w-full justify-center">
+                {updating && <Loader2 className="w-4 h-4 animate-spin" />} Apply Configuration
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
 };
 
-const shopRPMTracker = Object.create(null);
-const messageQueue = [];
+// ══════════════════════════════════════════════════════════════
+//  Dashboard View
+// ══════════════════════════════════════════════════════════════
+const DashboardView = ({ showMessage }) => {
+  const [stats, setStats]   = useState({ totalOrders: 0, totalRevenue: 0 });
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    api.get('/analytics')
+      .then(res => setStats({ totalOrders: res.data.totalOrders ?? 0, totalRevenue: res.data.totalRevenue ?? 0 }))
+      .catch(() => showMessage('Failed to fetch analytics.', 'error'))
+      .finally(() => setLoading(false));
+  }, [showMessage]);
+  
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div>
+        <h1 className="text-3xl font-semibold text-zinc-100 tracking-tight">Overview</h1>
+        <p className="text-sm text-zinc-500 mt-1">Real-time metrics for your workspace</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <StatCard loading={loading} icon={<DollarSign className="w-5 h-5" />} label="Gross Volume" value={`৳ ${stats.totalRevenue.toLocaleString()}`} />
+        <StatCard loading={loading} icon={<ShoppingCart className="w-5 h-5" />} label="Transactions" value={stats.totalOrders.toLocaleString()} />
+      </div>
+    </div>
+  );
+};
 
-function canProcessShopRPM(shopId, planRpm) {
-    const id  = shopId.toString();
-    const now = Date.now();
+// ══════════════════════════════════════════════════════════════
+//  Orders View
+// ══════════════════════════════════════════════════════════════
+const STATUS_STYLES = {
+  Pending:   'text-amber-400 bg-amber-400/10 border-amber-400/20',
+  Confirmed: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
+  Shipped:   'text-purple-400 bg-purple-400/10 border-purple-400/20',
+  Delivered: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
+  Cancelled: 'text-red-400 bg-red-400/10 border-red-400/20',
+};
+const ORDER_STATUSES = Object.keys(STATUS_STYLES);
 
-    if (!shopRPMTracker[id]) shopRPMTracker[id] = { count: 0, windowStart: now };
-    const tracker = shopRPMTracker[id];
+const OrdersView = ({ showMessage }) => {
+  const [orders, setOrders]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    api.get('/orders')
+      .then(res => setOrders(res.data?.orders ?? []))
+      .catch(() => showMessage('Failed to load logs.', 'error'))
+      .finally(() => setLoading(false));
+  }, [showMessage]);
 
-    if (now - tracker.windowStart >= 60_000) {
-        tracker.windowStart = now;
-        tracker.count = 0;
+  const handleStatusChange = async (id, status) => {
+    try {
+      await api.put(`/orders/${id}/status`, { status });
+      setOrders(prev => prev.map(o => o._id === id ? { ...o, status } : o));
+      showMessage('State updated', 'success');
+    } catch {
+      showMessage('Failed to mutate state', 'error');
     }
+  };
 
-    if (tracker.count >= planRpm) return false;
-    tracker.count++;
-    return true;
-}
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div>
+        <h1 className="text-3xl font-semibold text-zinc-100 tracking-tight">Transactions</h1>
+        <p className="text-sm text-zinc-500 mt-1">Audit log of all order requests</p>
+      </div>
+      <div className="bg-[#0A0A0A] rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
+            <thead>
+              <tr className="border-b border-white/5 bg-white/[0.02]">
+                {['Client', 'Payload', 'Destination', 'Value', 'State'].map(h => (
+                  <th key={h} className="px-6 py-4 text-xs font-medium uppercase text-zinc-500 tracking-widest">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+            {loading ? <TableSkeleton columns={5} /> : (
+              <>
+                {orders.length === 0
+                  ? <tr><td colSpan="5" className="px-6 py-12 text-center text-zinc-600 font-medium">No transactions found.</td></tr>
+                  : orders.map(order => (
+                    <tr key={order._id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-zinc-200">{order.customerName}</p>
+                        <p className="font-mono text-xs text-zinc-500 mt-1">{order.phoneNumber}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-zinc-200">{order.productName}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="font-mono text-xs text-zinc-500">{order.productCode}</span>
+                          <span className="w-1 h-1 bg-zinc-700 rounded-full"></span>
+                          <span className="text-xs text-zinc-500">{order.productSize}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-xs text-zinc-400 max-w-[200px] truncate">{order.address}</td>
+                      <td className="px-6 py-4 font-medium text-zinc-200 font-mono">৳{order.totalPrice?.toLocaleString()}</td>
+                      <td className="px-6 py-4">
+                        <select
+                          value={order.status}
+                          onChange={e => handleStatusChange(order._id, e.target.value)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium border outline-none cursor-pointer transition-colors appearance-none text-center ${STATUS_STYLES[order.status] ?? 'bg-white/5 text-zinc-400 border-white/10'}`}
+                        >
+                          {ORDER_STATUSES.map(s => <option key={s} value={s} className="bg-[#111] text-zinc-200">{s}</option>)}
+                        </select>
+                      </td>
+                    </tr>
+                  ))
+                }
+              </>
+            )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const SYNC_RE = /\[?SYNC:\s*(\{[\s\S]*?\})\s*\]?/;
-const SIZES = new Set(['S', 'M', 'L', 'XL', 'XXL', 'FREE SIZE']);
+// ══════════════════════════════════════════════════════════════
+//  Inventory View (Updated with MULTIPLE Sizes)
+// ══════════════════════════════════════════════════════════════
+const InventoryView = ({ showMessage }) => {
+  const [products, setProducts]       = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [showModal, setShowModal]     = useState(false);
+  const [saving, setSaving]           = useState(false);
+  
+  const [isEditing, setIsEditing]     = useState(false);
+  const [editId, setEditId]           = useState(null);
+  
+  // 🔥 Updated state: sizes is now an Array
+  const [formData, setFormData]       = useState({ name: '', code: '', price: '', sizes: [], color: '' });
 
-async function getAurelianResponse(shop, psid, text, imgUrl = null, isFromQueue = false) {
-    const limits = PLAN_LIMITS[shop.plan] ?? PLAN_LIMITS.Starter;
-
-    if (!isFromQueue && !canProcessShopRPM(shop._id, limits.rpm)) return 'QUEUED';
-
-    if (shop.monthlyMessageCount >= limits.maxMessages) {
-        return 'আপনার পেজের মাসিক অটো-রিপ্লাই লিমিট শেষ হয়েছে। দয়া করে থার্ডওয়েভ CRM থেকে প্যাকেজ আপগ্রেড করুন। 🙏';
+  const loadProducts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/products');
+      setProducts(res.data ?? []);
+    } catch {
+      showMessage('Failed to fetch catalog.', 'error');
+    } finally {
+      setLoading(false);
     }
+  }, [showMessage]);
 
-   const model = genAI.getGenerativeModel({
-        model: 'gemini-3.1-flash-lite', 
-        systemInstruction: shop.systemPrompt,
+  useEffect(() => { loadProducts(); }, [loadProducts]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload = { ...formData, price: Number(formData.price) };
+      if (isEditing) {
+        await api.put(`/products/${editId}`, payload);
+        showMessage('Item mutated successfully', 'success');
+      } else {
+        await api.post('/products', payload);
+        showMessage('Item injected successfully', 'success');
+      }
+      closeModal();
+      loadProducts();
+    } catch (err) {
+      showMessage(err.response?.data?.error || 'Operation failed', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditClick = (p) => {
+    setIsEditing(true);
+    setEditId(p._id);
+    // Support legacy "size" string OR new "sizes" array
+    let currentSizes = [];
+    if (p.sizes && p.sizes.length > 0) currentSizes = p.sizes;
+    else if (p.size) currentSizes = [p.size]; // Fallback for old data
+    
+    setFormData({ name: p.name, code: p.code, price: p.price, sizes: currentSizes, color: p.color || '' });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Execute deletion?')) return;
+    try {
+      await api.delete(`/products/${id}`);
+      showMessage('Item purged', 'success');
+      setProducts(prev => prev.filter(p => p._id !== id));
+    } catch (err) {
+      showMessage('Purge failed.', 'error');
+    }
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setIsEditing(false);
+    setEditId(null);
+    setFormData({ name: '', code: '', price: '', sizes: [], color: '' });
+  };
+
+  // Toggle selection of sizes in the form
+  const handleSizeToggle = (sz) => {
+    setFormData(prev => {
+      if (prev.sizes.includes(sz)) {
+        return { ...prev, sizes: prev.sizes.filter(s => s !== sz) };
+      } else {
+        return { ...prev, sizes: [...prev.sizes, sz] };
+      }
     });
+  };
 
-    let history = (await ChatHistory.findOne({ shopId: shop._id, psid }).lean())?.messages ?? [];
-    history = history.map(m => ({ role: m.role, parts: m.parts.map(p => ({ text: p.text })) }));
-    const firstUserIdx = history.findIndex(m => m.role === 'user');
-    if (firstUserIdx === -1) history = [];
-    else {
-        history = history.slice(firstUserIdx);
-        if (history.at(-1)?.role === 'user') history.pop();
-    }
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold text-zinc-100 tracking-tight">Data Models</h1>
+          <p className="text-sm text-zinc-500 mt-1">Manage product schemas, multi-sizes and pricing</p>
+        </div>
+        <button onClick={() => setShowModal(true)} className="btn-primary">
+          <Plus className="w-4 h-4" /> Inject Item
+        </button>
+      </div>
 
-    const chat  = model.startChat({ history });
-    const parts = [];
-    if (imgUrl) {
-        try {
-            const res = await axios.get(imgUrl, { responseType: 'arraybuffer', timeout: 30_000 });
-            parts.push({
-                inlineData: {
-                    data: Buffer.from(res.data).toString('base64'),
-                    mimeType: res.headers['content-type'] || 'image/jpeg',
+      <div className="bg-[#0A0A0A] rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
+            <thead>
+              <tr className="border-b border-white/5 bg-white/[0.02]">
+                {['Identifier', 'Attributes (Sizes & Color)', 'Base Value', 'Actions'].map((h, i) => (
+                  <th key={i} className={`px-6 py-4 text-xs font-medium uppercase text-zinc-500 tracking-widest ${i === 3 ? 'text-right' : ''}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+            {loading ? <TableSkeleton columns={4} /> : (
+              <>
+                {products.length === 0
+                  ? <tr><td colSpan="4" className="px-6 py-12 text-center text-zinc-600 font-medium">Dataset empty.</td></tr>
+                  : products.map(p => {
+                      // Support both new `sizes` array and old `size` string for display
+                      const displaySizes = p.sizes && p.sizes.length > 0 ? p.sizes : (p.size ? [p.size] : []);
+                      return (
+                        <tr key={p._id} className="hover:bg-white/[0.02] transition-colors group">
+                          <td className="px-6 py-4">
+                            <p className="font-mono text-zinc-400 text-sm">{p.code}</p>
+                            <p className="font-medium text-zinc-200 mt-1">{p.name}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col gap-1.5">
+                              {/* Display Sizes as Tags */}
+                              <div className="flex flex-wrap gap-1.5">
+                                {displaySizes.length > 0 ? (
+                                  displaySizes.map(sz => (
+                                    <span key={sz} className="px-2 py-0.5 bg-white/5 border border-white/10 text-[10px] font-medium text-zinc-300 uppercase rounded">
+                                      {sz}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="text-xs font-mono text-zinc-600">No Size</span>
+                                )}
+                              </div>
+                              <span className="text-xs text-zinc-500">{p.color || 'No Color'}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 font-mono text-zinc-200 font-semibold">৳{p.price?.toLocaleString()}</td>
+                          <td className="px-6 py-4 text-right flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEditClick(p)} className="p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleDelete(p._id)} className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })
                 }
-            });
-        } catch(e) {}
-    }
-    parts.push({ text: text || 'Please look at this image.' });
+              </>
+            )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-    try {
-        const result = await chat.sendMessage(parts);
-        const aiText = result.response.text();
-
-        await Shop.findByIdAndUpdate(shop._id, { $inc: { monthlyMessageCount: 1 } });
-        await ChatHistory.updateOne(
-            { shopId: shop._id, psid },
-            { $push: { messages: { $each: [{ role: 'user', parts: [{ text: text || '[image]' }] }, { role: 'model', parts: [{ text: aiText }] }], $slice: -20 } } },
-            { upsert: true }
-        );
-
-        return aiText;
-   } catch (err) {
-        console.error('\n🔴 Gemini API Error:', err.message); 
-        if (err.message?.includes('429')) return 'বট ব্যস্ত আছে। একটু পর মেসেজ দিন। 🙏';
-        return 'টেকনিক্যাল সমস্যা হচ্ছে। একটু পর মেসেজ দিন।';
-    }
-}
-
-// 🔥 Dynamic Order Sync
-async function processOrderSync(shop, aiResponse) {
-    const match = SYNC_RE.exec(aiResponse);
-    if (!match) return;
-
-    try {
-        const data = JSON.parse(match[1]);
-        const loc  = (data.l || '').toLowerCase();
-        const isInsideDhaka = loc.includes('inside') || (loc.includes('dhaka') && !loc.includes('outside'));
-        const sizeKey  = SIZES.has((data.s || 'M').toUpperCase()) ? (data.s || 'M').toUpperCase() : 'M';
-        
-        const providedCode = (data.c || '').trim().toUpperCase();
-        const providedName = (data.prod || '').trim();
-
-        let product = null;
-        if (providedCode) {
-            product = await Product.findOne({ shopId: shop._id, code: providedCode });
-        }
-        
-        if (!product && providedName) {
-            product = await Product.findOne({ 
-                shopId: shop._id, 
-                name: { $regex: new RegExp(providedName, 'i') } 
-            });
-        }
-
-        if (!product) {
-            console.log(`⚠️ Order Sync failed: Could not match product for ${providedName} or code ${providedCode}`);
-            return;
-        }
-
-        const deliveryCharge = isInsideDhaka ? 60 : 120;
-        await Order.create({
-            shopId:           shop._id,
-            customerName:     (data.n || 'Unknown').trim(),
-            phoneNumber:      (data.p || 'Unknown').trim(),
-            address:          (data.a || 'Unknown').trim(),
-            productName:      product.name,
-            productCode:      product.code,
-            productSize:      sizeKey,
-            deliveryLocation: isInsideDhaka ? 'Inside Dhaka' : 'Outside Dhaka',
-            deliveryCharge,
-            totalPrice:       product.price + deliveryCharge,
-        });
-        console.log(`✅ Order Synced Dynamically for: ${product.name}`);
-    } catch (err) { 
-        console.error('Order sync error:', err.message); 
-    }
-}
-
-// ══════════════════════════════════════════════════════════════
-//  8. Background Queue Worker (Facebook + WhatsApp)
-// ══════════════════════════════════════════════════════════════
-setInterval(async () => {
-    if (!messageQueue.length) return;
-
-    for (let i = 0; i < messageQueue.length; i++) {
-        const item = messageQueue[i];
-        
-        const freshShop = await Shop.findById(item.shopId);
-        if (!freshShop || !freshShop.isAIActive) {
-            messageQueue.splice(i, 1);
-            i--;
-            continue;
-        }
-
-        const limits = PLAN_LIMITS[freshShop.plan] ?? PLAN_LIMITS.Starter;
-
-        if (!canProcessShopRPM(freshShop._id, limits.rpm)) continue;
-
-        messageQueue.splice(i, 1);
-        i--;
-
-        try {
-            const aiResponse = await getAurelianResponse(freshShop, item.psid, item.text, item.imgUrl, true);
-            if (aiResponse === 'QUEUED') { 
-                messageQueue.push(item);
-                continue;
-            }
-
-            const cleanMessage = aiResponse.replace(SYNC_RE, '').trim();
-
-            if (item.platform === 'whatsapp') {
-                const decryptedToken = decryptToken(freshShop.whatsappAccessToken);
-                await axios.post(
-                    `https://graph.facebook.com/v19.0/${freshShop.whatsappPhoneNumberId}/messages`,
-                    {
-                        messaging_product: 'whatsapp',
-                        to: item.psid,
-                        type: 'text',
-                        text: { body: cleanMessage }
-                    },
-                    { headers: { 'Authorization': `Bearer ${decryptedToken}`, 'Content-Type': 'application/json' } }
-                );
-            } else {
-                const decryptedToken = decryptToken(freshShop.metaAccessToken);
-                await axios.post(
-                    'https://graph.facebook.com/v19.0/me/messages',
-                    { recipient: { id: item.psid }, message: { text: cleanMessage } },
-                    { params: { access_token: decryptedToken } }
-                );
-            }
+      {showModal && (
+        <Modal title={isEditing ? "Mutate Schema" : "Define Schema"} onClose={closeModal}>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Unique ID (Code)">
+                <input required type="text" className="form-input font-mono uppercase" value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} />
+              </FormField>
+              <FormField label="Descriptor (Name)">
+                <input required type="text" className="form-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+              </FormField>
+            </div>
             
-            await processOrderSync(freshShop, aiResponse);
-        } catch (err) { console.error('Queue error:', err.message); }
-    }
-}, 5_000);
+            {/* 🔥 Multiple Size Selector UI */}
+            <div className="space-y-4 border border-white/5 bg-white/[0.02] p-4 rounded-xl">
+              <FormField label="Available Sizes (Select all that apply)">
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {AVAILABLE_SIZES.map(sz => (
+                    <button
+                      key={sz} type="button" onClick={() => handleSizeToggle(sz)}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold font-mono transition-all border ${
+                        formData.sizes.includes(sz)
+                          ? 'bg-white text-black border-white shadow-[0_0_10px_rgba(255,255,255,0.2)]'
+                          : 'bg-white/5 text-zinc-500 border-white/10 hover:border-white/20 hover:text-zinc-300'
+                      }`}
+                    >
+                      {sz}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-zinc-600 mt-2 font-mono">* Leave empty for items without size (e.g. Wallets, Watches)</p>
+              </FormField>
+              <FormField label="Variant (Color)">
+                <input type="text" className="form-input" placeholder="e.g. Black" value={formData.color} onChange={e => setFormData({ ...formData, color: e.target.value })} />
+              </FormField>
+            </div>
+
+            <FormField label="Integer Value (৳)">
+              <input required type="number" min="0" className="form-input font-mono" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} />
+            </FormField>
+            <div className="flex items-center justify-end gap-3 mt-8">
+              <button type="button" onClick={closeModal} className="px-5 py-2.5 text-sm font-medium text-zinc-400 hover:text-white transition-colors">Cancel</button>
+              <button type="submit" disabled={saving} className="btn-primary">
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isEditing ? 'Commit Changes' : 'Execute Injection'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+};
 
 // ══════════════════════════════════════════════════════════════
-//  9. Multi-Tenant Webhook (Facebook Messenger)
+//  Settings View (Integration Hub)
 // ══════════════════════════════════════════════════════════════
-app.get('/webhook', (req, res) => {
-    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === process.env.META_VERIFY_TOKEN) {
-        return res.status(200).send(req.query['hub.challenge']);
-    }
-    res.sendStatus(403);
-});
+const SettingsView = ({ showMessage }) => {
+  const [config, setConfig]   = useState({ isAIActive: true, systemPrompt: '', metaPageId: '', whatsappPhoneNumberId: '' });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState(false);
+  
+  const [manualIntegration, setManualIntegration] = useState({ pageId: '', token: '' });
+  const [connectingFb, setConnectingFb] = useState(false);
+  const [waIntegration, setWaIntegration] = useState({ phoneId: '', token: '' });
+  const [connectingWa, setConnectingWa] = useState(false);
 
-app.post('/webhook', async (req, res) => {
-    res.sendStatus(200); 
-    const body = req.body;
-    console.log('\n🔔 FB WEBHOOK HIT! Facebook is sending data...');
+  useEffect(() => {
+    api.get('/shop/config')
+      .then(res => { if (res.data) setConfig(res.data); })
+      .catch(() => showMessage('Failed to fetch config.', 'error'))
+      .finally(() => setLoading(false));
+  }, [showMessage]);
 
-    if (body.object !== 'page') return;
-
+  const savePrompt = async () => {
+    setSaving(true);
     try {
-        const pageId = body.entry?.[0]?.id;
-        const shop = await Shop.findOne({ metaPageId: pageId });
-
-        if (!shop || !shop.isAIActive) return;
-
-        const messaging = body.entry?.[0]?.messaging?.[0];
-        if (!messaging) return;
-
-        const psid   = messaging.sender?.id;
-        const text   = messaging.message?.text;
-        const imgUrl = messaging.message?.attachments?.[0]?.payload?.url;
-        
-        if (!psid || (!text && !imgUrl)) return;
-
-        const aiResponse = await getAurelianResponse(shop, psid, text, imgUrl);
-        
-        if (aiResponse === 'QUEUED') {
-            console.log('⏳ Message Queued due to Rate Limit...');
-            messageQueue.push({ shopId: shop._id, psid, text, imgUrl, platform: 'facebook' });
-            return;
-        }
-
-        const cleanMessage = aiResponse.replace(SYNC_RE, '').trim();
-        const decryptedToken = decryptToken(shop.metaAccessToken);
-
-        await axios.post(
-            'https://graph.facebook.com/v19.0/me/messages',
-            { recipient: { id: psid }, message: { text: cleanMessage } },
-            { params: { access_token: decryptedToken } }
-        );
-        
-        console.log('✅ FB AI Reply Sent Successfully!');
-        await processOrderSync(shop, aiResponse);
-    } catch (err) { console.error('❌ FB Webhook error:', err.message); }
-});
-
-// ══════════════════════════════════════════════════════════════
-//  10. Multi-Tenant Webhook (WhatsApp Cloud API)
-// ══════════════════════════════════════════════════════════════
-app.get('/webhook/whatsapp', (req, res) => {
-    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === process.env.META_VERIFY_TOKEN) {
-        return res.status(200).send(req.query['hub.challenge']);
+      await api.put('/shop/config', { systemPrompt: config.systemPrompt });
+      showMessage('Ruleset deployed', 'success');
+    } catch {
+      showMessage('Deployment failed', 'error');
+    } finally {
+      setSaving(false);
     }
-    res.sendStatus(403);
-});
+  };
 
-app.post('/webhook/whatsapp', async (req, res) => {
-    res.sendStatus(200);
-    const body = req.body;
-    console.log('\n📱 WHATSAPP WEBHOOK HIT!');
-
-    if (body.object !== 'whatsapp_business_account') return;
-
+  const toggleAI = async () => {
+    const next = !config.isAIActive;
     try {
-        const entry = body.entry?.[0];
-        const changes = entry?.changes?.[0]?.value;
-        if (!changes || !changes.messages || !changes.messages[0]) return;
+      await api.put('/shop/config', { isAIActive: next });
+      setConfig(c => ({ ...c, isAIActive: next }));
+      showMessage(`Engine state: ${next ? 'ONLINE' : 'OFFLINE'}`, 'success');
+    } catch {
+      showMessage('State mutation failed', 'error');
+    }
+  };
 
-        const phoneNumberId = changes.metadata.phone_number_id;
-        const message = changes.messages[0];
-        const fromNumber = message.from; 
-        
-        const shop = await Shop.findOne({ whatsappPhoneNumberId: phoneNumberId });
-        if (!shop || !shop.isAIActive) return;
+  const handleFacebookConnect = async (e) => {
+    e.preventDefault();
+    if (!manualIntegration.pageId || !manualIntegration.token) return showMessage('Parameters missing', 'error');
+    setConnectingFb(true);
+    try {
+      await api.put('/shop/manual-facebook', { metaPageId: manualIntegration.pageId, metaAccessToken: manualIntegration.token });
+      showMessage('Graph API linked', 'success');
+      setConfig(prev => ({ ...prev, metaPageId: manualIntegration.pageId }));
+      setManualIntegration({ pageId: '', token: '' }); 
+    } catch (err) {
+      showMessage('Link failed', 'error');
+    } finally {
+      setConnectingFb(false);
+    }
+  };
 
-        let text = '';
-        if (message.type === 'text') text = message.text.body;
-        if (!text) return; // Images not fully handled for WA in this version
+  const handleWhatsappConnect = async (e) => {
+    e.preventDefault();
+    if (!waIntegration.phoneId || !waIntegration.token) return showMessage('Parameters missing', 'error');
+    setConnectingWa(true);
+    try {
+      await api.put('/shop/manual-whatsapp', { whatsappPhoneNumberId: waIntegration.phoneId, whatsappAccessToken: waIntegration.token });
+      showMessage('Cloud API linked', 'success');
+      setConfig(prev => ({ ...prev, whatsappPhoneNumberId: waIntegration.phoneId }));
+      setWaIntegration({ phoneId: '', token: '' }); 
+    } catch (err) {
+      showMessage('Link failed', 'error');
+    } finally {
+      setConnectingWa(false);
+    }
+  };
 
-        const aiResponse = await getAurelianResponse(shop, fromNumber, text);
-        
-        if (aiResponse === 'QUEUED') {
-            console.log('⏳ WA Message Queued due to Rate Limit...');
-            messageQueue.push({ shopId: shop._id, psid: fromNumber, text, platform: 'whatsapp' });
-            return;
+  if (loading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-zinc-600" /></div>;
+
+  return (
+    <div className="space-y-6 max-w-5xl animate-in fade-in duration-500">
+      <div>
+        <h1 className="text-3xl font-semibold text-zinc-100 tracking-tight">Integrations</h1>
+        <p className="text-sm text-zinc-500 mt-1">Configure external APIs and AI behavior</p>
+      </div>
+
+      <div className="bg-[#0A0A0A] rounded-2xl border border-white/10 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+            <Power className={`w-5 h-5 ${config.isAIActive ? 'text-white' : 'text-zinc-600'}`} />
+          </div>
+          <div>
+            <h3 className="font-medium text-zinc-200">Processing Engine</h3>
+            <p className="text-xs text-zinc-500 mt-1 font-mono">
+              Status: {config.isAIActive ? <span className="text-emerald-400">OPERATIONAL</span> : <span className="text-amber-400">STANDBY</span>}
+            </p>
+          </div>
+        </div>
+        <button onClick={toggleAI} className={`relative w-14 h-7 rounded-full transition-all duration-300 focus:outline-none ${config.isAIActive ? 'bg-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' : 'bg-zinc-800 border border-white/10'}`}>
+          <span className={`absolute top-1 w-5 h-5 rounded-full transition-all duration-300 ${config.isAIActive ? 'left-8 bg-black' : 'left-1 bg-zinc-500'}`} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <form onSubmit={handleFacebookConnect} className="bg-[#0A0A0A] border border-white/10 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity"><Lock className="w-24 h-24" /></div>
+          <div className="relative">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-medium text-zinc-200 flex items-center gap-2"><Lock className="w-4 h-4 text-zinc-500" /> Graph API (Meta)</h3>
+              {config.metaPageId && <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold tracking-widest uppercase rounded">Bound</span>}
+            </div>
+            <div className="space-y-4">
+              <input type="text" required placeholder={config.metaPageId || "Resource ID"} className="form-input font-mono" value={manualIntegration.pageId} onChange={e => setManualIntegration({ ...manualIntegration, pageId: e.target.value })} />
+              <input type="password" required placeholder="Bearer Token" className="form-input font-mono" value={manualIntegration.token} onChange={e => setManualIntegration({ ...manualIntegration, token: e.target.value })} />
+              <button type="submit" disabled={connectingFb} className="btn-secondary w-full justify-center">
+                {connectingFb ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Inject Credentials'}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <form onSubmit={handleWhatsappConnect} className="bg-[#0A0A0A] border border-white/10 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity"><MessageCircle className="w-24 h-24" /></div>
+          <div className="relative">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-medium text-zinc-200 flex items-center gap-2"><MessageCircle className="w-4 h-4 text-zinc-500" /> WA Cloud API</h3>
+              {config.whatsappPhoneNumberId && <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold tracking-widest uppercase rounded">Bound</span>}
+            </div>
+            <div className="space-y-4">
+              <input type="text" required placeholder={config.whatsappPhoneNumberId || "Node ID"} className="form-input font-mono" value={waIntegration.phoneId} onChange={e => setWaIntegration({ ...waIntegration, phoneId: e.target.value })} />
+              <input type="password" required placeholder="Bearer Token" className="form-input font-mono" value={waIntegration.token} onChange={e => setWaIntegration({ ...waIntegration, token: e.target.value })} />
+              <button type="submit" disabled={connectingWa} className="btn-secondary w-full justify-center">
+                {connectingWa ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Inject Credentials'}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div className="bg-[#0A0A0A] rounded-2xl border border-white/10 shadow-xl overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+          <h3 className="font-medium text-sm text-zinc-200">System Instruction (LLM)</h3>
+          <p className="text-[10px] font-mono text-zinc-500 flex items-center gap-1.5 uppercase tracking-wider"><Info className="w-3.5 h-3.5" /> Preserve [SYNC] block</p>
+        </div>
+        <textarea
+          className="w-full h-[400px] p-6 bg-transparent text-zinc-300 font-mono text-[13px] leading-relaxed outline-none resize-none focus:ring-1 focus:ring-white/20 selection:bg-white/20"
+          value={config.systemPrompt || ''}
+          onChange={e => setConfig({ ...config, systemPrompt: e.target.value })}
+          spellCheck={false}
+        />
+        <div className="px-6 py-4 border-t border-white/5 bg-white/[0.02] flex justify-end">
+          <button onClick={savePrompt} disabled={saving} className="btn-primary">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Compile & Deploy
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ══════════════════════════════════════════════════════════════
+//  Dashboard Layout
+// ══════════════════════════════════════════════════════════════
+const DashboardLayout = () => {
+  const { user, logout }  = useContext(AuthContext);
+  const isAdmin           = user?.role === 'admin';
+  const [tab, setTab]     = useState(isAdmin ? 'superadmin' : 'dashboard');
+  const [toast, setToast] = useState(null);
+  
+  const showMessage = useCallback((msg, type) => setToast({ message: msg, type }), []);
+  
+  const navItems = [
+    ...(isAdmin ? [{ id: 'superadmin', label: 'Command', icon: Shield }] : []),
+    { id: 'dashboard', label: 'Overview',    icon: Activity },
+    { id: 'orders',    label: 'Transactions',icon: ShoppingCart },
+    { id: 'inventory', label: 'Models',      icon: Package },
+    { id: 'settings',  label: 'Integration', icon: Settings },
+  ];
+
+  return (
+    <div className="min-h-screen bg-black text-zinc-200 flex flex-col md:flex-row font-sans selection:bg-white/20">
+      {/* Global Styles for Inputs & Buttons within this scope */}
+      <style>{`
+        .form-input {
+          width: 100%;
+          padding: 0.75rem 1rem;
+          background-color: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 0.5rem;
+          font-size: 0.875rem;
+          color: #e4e4e7;
+          outline: none;
+          transition: all 0.2s;
         }
-
-        const cleanMessage = aiResponse.replace(SYNC_RE, '').trim();
-        const decryptedToken = decryptToken(shop.whatsappAccessToken);
-
-        await axios.post(
-            `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,
-            {
-                messaging_product: 'whatsapp',
-                to: fromNumber,
-                type: 'text',
-                text: { body: cleanMessage }
-            },
-            {
-                headers: {
-                    'Authorization': `Bearer ${decryptedToken}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
+        .form-input:focus {
+          border-color: rgba(255, 255, 255, 0.3);
+          background-color: rgba(255, 255, 255, 0.05);
+        }
+        .btn-primary {
+          padding: 0.625rem 1.25rem;
+          background-color: #ededed;
+          color: #000;
+          font-size: 0.875rem;
+          font-weight: 600;
+          border-radius: 0.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          transition: all 0.2s;
+        }
+        .btn-primary:hover:not(:disabled) {
+          background-color: #fff;
+          box-shadow: 0 0 15px rgba(255,255,255,0.2);
+        }
+        .btn-secondary {
+          padding: 0.625rem 1.25rem;
+          background-color: rgba(255,255,255,0.05);
+          color: #e4e4e7;
+          border: 1px solid rgba(255,255,255,0.1);
+          font-size: 0.875rem;
+          font-weight: 500;
+          border-radius: 0.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          transition: all 0.2s;
+        }
+        .btn-secondary:hover:not(:disabled) {
+          background-color: rgba(255,255,255,0.1);
+        }
+      `}</style>
+      
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      
+      {/* Sleek Minimal Sidebar */}
+      <aside className="w-full md:w-[240px] bg-[#050505] border-r border-white/5 flex flex-col shrink-0 sticky top-0 md:h-screen z-40">
+        <div className="px-6 py-8 flex items-center gap-3">
+          <div className="w-8 h-8 bg-white rounded flex items-center justify-center text-black font-black text-sm">
+            T
+          </div>
+          <div>
+            <h1 className="font-semibold text-zinc-200 tracking-tight text-sm">Thirdwave CRM</h1>
+            <p className="text-[9px] font-mono text-zinc-500 uppercase mt-1 tracking-widest">
+              {isAdmin ? 'ROOT ADMIN' : user?.name}
+            </p>
+          </div>
+        </div>
         
-        console.log('✅ WA AI Reply Sent Successfully!');
-        await processOrderSync(shop, aiResponse);
-    } catch (err) { console.error('❌ WA Webhook error:', err.message); }
-});
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+          {navItems.map(({ id, label, icon: Icon }) => {
+            const active = tab === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all group ${
+                  active
+                    ? 'bg-white/10 text-white'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Icon className={`w-4 h-4 ${active ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-400'}`} />
+                  {label}
+                </div>
+              </button>
+            );
+          })}
+        </nav>
+        
+        <div className="p-4 mt-auto">
+          <button
+            onClick={logout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-medium text-zinc-500 hover:text-white hover:bg-white/5 transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" /> Terminate Session
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 p-5 sm:p-10 max-w-6xl mx-auto w-full">
+        {tab === 'superadmin' && isAdmin   && <SuperAdminView  showMessage={showMessage} />}
+        {tab === 'dashboard'               && <DashboardView   showMessage={showMessage} />}
+        {tab === 'orders'                  && <OrdersView      showMessage={showMessage} />}
+        {tab === 'inventory'               && <InventoryView   showMessage={showMessage} />}
+        {tab === 'settings'                && <SettingsView    showMessage={showMessage} />}
+      </main>
+    </div>
+  );
+};
 
 // ══════════════════════════════════════════════════════════════
-//  11. Global Error Handler & Start
+//  Route Protection & Entry Point
 // ══════════════════════════════════════════════════════════════
-app.use((err, req, res, _next) => {
-    console.error('Unhandled error:', err);
-    res.status(500).json({ error: 'Internal server error' });
-});
+const ProtectedRoute = ({ children }) => {
+  const { user, loading } = useContext(AuthContext);
+  if (loading) return (
+    <div className="h-screen flex items-center justify-center bg-black">
+      <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+    </div>
+  );
+  return user ? children : <Navigate to="/auth" replace />;
+};
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Thirdwave SaaS API running on port ${PORT}`));
-module.exports = app;
+export default function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/auth" element={
+            <AuthContext.Consumer>
+              {({ user }) => !user ? <AuthPage /> : <Navigate to="/dashboard" replace />}
+            </AuthContext.Consumer>
+          } />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          } />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
+  );
+}

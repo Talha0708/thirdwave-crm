@@ -70,7 +70,7 @@ const ShopSchema = new mongoose.Schema({
     resetDate:           { type: Date,   default: Date.now   },
 }, { timestamps: true });
 
-// ── Product Schema ────────────────────────────────────────────
+// ── Product Schema (UPDATED FOR MULTIPLE SIZES) ───────────────
 const ProductSchema = new mongoose.Schema({
     shopId: {
         type:     mongoose.Schema.Types.ObjectId,
@@ -94,11 +94,10 @@ const ProductSchema = new mongoose.Schema({
         required: true,
         min:      0,
     },
-    // 🔥 Added Size and Color for better inventory management
-    size: { 
-        type: String, 
-        default: 'M',
-        trim: true 
+    // 🔥 Changed from single String to Array of Strings to support multiple sizes and "no size" items
+    sizes: { 
+        type: [String], 
+        default: [] 
     },
     color: { 
         type: String, 
