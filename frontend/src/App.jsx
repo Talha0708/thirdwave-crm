@@ -21,7 +21,9 @@ const PLAN_LABELS = {
 // ── Available Sizes Array ─────────────────────────────────────
 const AVAILABLE_SIZES = ['S', 'M', 'L', 'XL', 'XXL', '3XL', 'FREE SIZE'];
 
-// ── Toast Notification ────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  Shared UI Primitives (Moved to top to prevent White Screen Crash)
+// ══════════════════════════════════════════════════════════════
 const Toast = ({ message, type, onClose }) => {
   if (!message) return null;
   const isError = type === 'error';
@@ -38,7 +40,6 @@ const Toast = ({ message, type, onClose }) => {
   );
 };
 
-// ── Skeleton Loader ───────────────────────────────────────────
 const TableSkeleton = ({ columns }) => (
   <>
     {[1, 2, 3, 4].map(r => (
@@ -53,7 +54,6 @@ const TableSkeleton = ({ columns }) => (
   </>
 );
 
-// ── Stat Card ─────────────────────────────────────────────────
 const StatCard = ({ icon, label, value, loading }) => {
   return (
     <div className="group relative rounded-2xl p-6 bg-[#0A0A0A] border border-white/10 hover:border-white/20 transition-all duration-300 overflow-hidden">
@@ -70,6 +70,29 @@ const StatCard = ({ icon, label, value, loading }) => {
     </div>
   );
 };
+
+const Modal = ({ title, onClose, children }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="bg-[#0A0A0A] border border-white/10 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
+        <h2 className="text-base font-medium text-zinc-200">{title}</h2>
+        <button onClick={onClose} className="p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="p-6">
+        {children}
+      </div>
+    </div>
+  </div>
+);
+
+const FormField = ({ label, children }) => (
+  <div>
+    <label className="block text-[10px] font-medium text-zinc-500 uppercase tracking-widest mb-2">{label}</label>
+    {children}
+  </div>
+);
 
 // ══════════════════════════════════════════════════════════════
 //  Super Admin View
@@ -245,21 +268,23 @@ const SuperAdminView = ({ showMessage }) => {
           <form onSubmit={handleCreateClient} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField label="Owner Name">
-                <input required type="text" className="form-input" value={clientData.name || ''} onChange={e => setClientData({ ...clientData, name: e.target.value })} />
+                <input required type="text" className="form-input" value={clientData.name} onChange={e => setClientData({ ...clientData, name: e.target.value })} />
               </FormField>
               <FormField label="Workspace ID (Shop Name)">
-                <input required type="text" className="form-input" value={clientData.shopName || ''} onChange={e => setClientData({ ...clientData, shopName: e.target.value })} />
+                <input required type="text" className="form-input" value={clientData.shopName} onChange={e => setClientData({ ...clientData, shopName: e.target.value })} />
               </FormField>
             </div>
             <FormField label="Root Email">
-              <input required type="email" className="form-input" value={clientData.email || ''} onChange={e => setClientData({ ...clientData, email: e.target.value })} />
+              <input required type="email" className="form-input" value={clientData.email} onChange={e => setClientData({ ...clientData, email: e.target.value })} />
             </FormField>
             <FormField label="Access Key (Password)">
-              <input required type="text" className="form-input font-mono" value={clientData.password || ''} onChange={e => setClientData({ ...clientData, password: e.target.value })} />
+              <input required type="text" className="form-input font-mono" value={clientData.password} onChange={e => setClientData({ ...clientData, password: e.target.value })} />
             </FormField>
             <FormField label="Compute Tier">
-              <select className="form-input" value={clientData.plan || 'Starter'} onChange={e => setClientData({ ...clientData, plan: e.target.value })}>
-                {Object.entries(PLAN_LABELS).map(([k, v]) => <option key={k} value={k} className="bg-[#111]">{k} ({v.price} / {v.desc})</option>)}
+              <select className="form-input" value={clientData.plan} onChange={e => setClientData({ ...clientData, plan: e.target.value })}>
+                {Object.entries(PLAN_LABELS).map(([k, v]) => (
+                  <option key={k} value={k} className="bg-[#111]">{k} ({v.price} / {v.desc})</option>
+                ))}
               </select>
             </FormField>
             <div className="pt-4">
@@ -278,6 +303,9 @@ const SuperAdminView = ({ showMessage }) => {
               <div>
                 <p className="font-medium text-zinc-200">{selectedShop.shopName}</p>
                 <p className="text-xs text-zinc-500 mt-1 font-mono">{selectedShop.plan} &bull; {selectedShop.monthlyMessageCount.toLocaleString()} reqs</p>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                <Settings className="w-4 h-4 text-zinc-400" />
               </div>
             </div>
             <div className="space-y-3">
@@ -402,7 +430,8 @@ const OrdersView = ({ showMessage }) => {
                       </td>
                       <td className="px-6 py-4 align-top">
                         <div className="flex flex-col gap-3">
-                          {order.items && order.items.map((item, idx) => (
+                          {/* 🔥 Legacy fallback in case items array is missing for older orders */}
+                          {order.items && order.items.length > 0 ? order.items.map((item, idx) => (
                             <div key={idx} className="bg-white/[0.03] p-3 rounded-xl border border-white/5">
                               <p className="font-medium text-zinc-200 text-sm">
                                 <span className="text-indigo-400 font-bold">{item.quantity}x</span> {item.productName}
@@ -413,7 +442,17 @@ const OrdersView = ({ showMessage }) => {
                                 {item.color && <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-[10px] font-mono text-zinc-400 uppercase rounded">Color: {item.color}</span>}
                               </div>
                             </div>
-                          ))}
+                          )) : (
+                            <div className="bg-white/[0.03] p-3 rounded-xl border border-white/5">
+                              <p className="font-medium text-zinc-200 text-sm">
+                                <span className="text-indigo-400 font-bold">1x</span> {order.productName}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-[10px] font-mono text-zinc-400 uppercase rounded">Code: {order.productCode}</span>
+                                {order.productSize && <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-[10px] font-mono text-zinc-400 uppercase rounded">Size: {order.productSize}</span>}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-xs text-zinc-400 max-w-[200px] truncate align-top pt-7">{order.address}</td>
@@ -444,7 +483,7 @@ const OrdersView = ({ showMessage }) => {
 };
 
 // ══════════════════════════════════════════════════════════════
-//  Inventory View (Multi-Size Support & Ultra Safe)
+//  Inventory View (ULTRA SAFE Multi-Size Array Processing)
 // ══════════════════════════════════════════════════════════════
 const InventoryView = ({ showMessage }) => {
   const [products, setProducts]       = useState([]);
@@ -456,7 +495,6 @@ const InventoryView = ({ showMessage }) => {
   const [isEditing, setIsEditing]     = useState(false);
   const [editId, setEditId]           = useState(null);
   
-  // 🔥 Safe initial state
   const [formData, setFormData]       = useState({ name: '', code: '', price: '', sizes: [], color: '' });
 
   const loadProducts = useCallback(async () => {
@@ -494,21 +532,35 @@ const InventoryView = ({ showMessage }) => {
     }
   };
 
+  // 🔥 100% Crash-Proof Edit Handler
   const handleEditClick = (p) => {
     setIsEditing(true);
     setEditId(p._id);
     
-    // 🔥 Ultra safe size array parsing to prevent crashes
-    const currentSizes = p.sizes && Array.isArray(p.sizes) ? p.sizes : (p.size ? [p.size] : []);
+    let currentSizes = [];
+    if (Array.isArray(p.sizes)) {
+      currentSizes = [...p.sizes];
+    } else if (typeof p.sizes === 'string') {
+      currentSizes = p.sizes.split(',').map(s => s.trim());
+    } else if (typeof p.size === 'string') {
+      currentSizes = [p.size.trim()];
+    }
     
     setFormData({ 
       name: p.name || '', 
       code: p.code || '', 
       price: p.price || '', 
-      sizes: currentSizes, 
+      sizes: currentSizes.filter(Boolean), 
       color: p.color || '' 
     });
-    
+    setShowModal(true);
+  };
+
+  // 🔥 Crash-Proof Inject Handler
+  const handleOpenAdd = () => {
+    setIsEditing(false);
+    setEditId(null);
+    setFormData({ name: '', code: '', price: '', sizes: [], color: '' });
     setShowModal(true);
   };
 
@@ -533,12 +585,11 @@ const InventoryView = ({ showMessage }) => {
     setFormData({ name: '', code: '', price: '', sizes: [], color: '' });
   };
 
+  // 🔥 Crash-Proof Size Toggle Handler
   const handleSizeToggle = (sz) => {
     setFormData(prev => {
-      // 🔥 Safe check to prevent undefined crash
-      const currentSizes = prev.sizes || [];
-      const isExist = currentSizes.includes(sz);
-      if (isExist) {
+      const currentSizes = Array.isArray(prev.sizes) ? prev.sizes : [];
+      if (currentSizes.includes(sz)) {
         return { ...prev, sizes: currentSizes.filter(s => s !== sz) };
       } else {
         return { ...prev, sizes: [...currentSizes, sz] };
@@ -553,7 +604,7 @@ const InventoryView = ({ showMessage }) => {
           <h1 className="text-3xl font-semibold text-zinc-100 tracking-tight">Data Models</h1>
           <p className="text-sm text-zinc-500 mt-1">Manage catalog schemas and batch size entry</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="btn-primary">
+        <button onClick={handleOpenAdd} className="btn-primary">
           <Plus className="w-4 h-4" /> Inject Item
         </button>
       </div>
@@ -574,7 +625,7 @@ const InventoryView = ({ showMessage }) => {
                 {products.length === 0
                   ? <tr><td colSpan="5" className="px-6 py-12 text-center text-zinc-600 font-medium">Dataset empty.</td></tr>
                   : products.map(p => {
-                      const displaySizes = p.sizes && Array.isArray(p.sizes) ? p.sizes : (p.size ? [p.size] : []);
+                      const displaySizes = Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes : (p.size ? [p.size] : []);
                       return (
                         <tr key={p._id} className="hover:bg-white/[0.02] transition-colors group">
                           <td className="px-6 py-4 font-mono text-zinc-400 text-sm">{p.code}</td>
@@ -624,19 +675,18 @@ const InventoryView = ({ showMessage }) => {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="grid grid-cols-2 gap-4">
               <FormField label="Unique ID / SKU Code">
-                {/* 🔥 Safe inputs with || '' to prevent uncontrolled input errors */}
-                <input required type="text" className="form-input font-mono uppercase" placeholder="e.g. 101" value={formData.code || ''} onChange={e => setFormData({ ...formData, code: e.target.value })} />
+                <input required type="text" className="form-input font-mono uppercase" placeholder="e.g. 101" value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} />
               </FormField>
               <FormField label="Descriptor (Name)">
-                <input required type="text" className="form-input" placeholder="e.g. Premium Kurta" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                <input required type="text" className="form-input" placeholder="e.g. Premium Kurta" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
               </FormField>
             </div>
             
             <FormField label="Scale Configuration (Select Available Sizes)">
               <div className="grid grid-cols-4 gap-2 mt-2 bg-white/[0.01] border border-white/5 p-3 rounded-xl">
                 {AVAILABLE_SIZES.map(sz => {
-                  // 🔥 Safe Array parsing
-                  const isSelected = (formData.sizes || []).includes(sz);
+                  const sizesArray = Array.isArray(formData.sizes) ? formData.sizes : [];
+                  const isSelected = sizesArray.includes(sz);
                   return (
                     <button
                       key={sz}
@@ -660,10 +710,10 @@ const InventoryView = ({ showMessage }) => {
 
             <div className="grid grid-cols-2 gap-4">
               <FormField label="Variant (Color)">
-                <input type="text" className="form-input" placeholder="e.g. Black" value={formData.color || ''} onChange={e => setFormData({ ...formData, color: e.target.value })} />
+                <input type="text" className="form-input" placeholder="e.g. Black" value={formData.color} onChange={e => setFormData({ ...formData, color: e.target.value })} />
               </FormField>
               <FormField label="Integer Value (৳)">
-                <input required type="number" min="0" className="form-input font-mono" placeholder="799" value={formData.price || ''} onChange={e => setFormData({ ...formData, price: e.target.value })} />
+                <input required type="number" min="0" className="form-input font-mono" placeholder="799" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} />
               </FormField>
             </div>
             
@@ -860,70 +910,23 @@ const DashboardLayout = () => {
 
   return (
     <div className="min-h-screen bg-black text-zinc-200 flex flex-col md:flex-row font-sans selection:bg-white/20">
-      {/* Global Styles for Inputs & Buttons within this scope */}
       <style>{`
-        .form-input {
-          width: 100%;
-          padding: 0.75rem 1rem;
-          background-color: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 0.5rem;
-          font-size: 0.875rem;
-          color: #e4e4e7;
-          outline: none;
-          transition: all 0.2s;
-        }
-        .form-input:focus {
-          border-color: rgba(255, 255, 255, 0.3);
-          background-color: rgba(255, 255, 255, 0.05);
-        }
-        .btn-primary {
-          padding: 0.625rem 1.25rem;
-          background-color: #ededed;
-          color: #000;
-          font-size: 0.875rem;
-          font-weight: 600;
-          border-radius: 0.5rem;
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          transition: all 0.2s;
-        }
-        .btn-primary:hover:not(:disabled) {
-          background-color: #fff;
-          box-shadow: 0 0 15px rgba(255,255,255,0.2);
-        }
-        .btn-secondary {
-          padding: 0.625rem 1.25rem;
-          background-color: rgba(255,255,255,0.05);
-          color: #e4e4e7;
-          border: 1px solid rgba(255,255,255,0.1);
-          font-size: 0.875rem;
-          font-weight: 500;
-          border-radius: 0.5rem;
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          transition: all 0.2s;
-        }
-        .btn-secondary:hover:not(:disabled) {
-          background-color: rgba(255,255,255,0.1);
-        }
+        .form-input { width: 100%; padding: 0.75rem 1rem; background-color: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.5rem; font-size: 0.875rem; color: #e4e4e7; outline: none; transition: all 0.2s; }
+        .form-input:focus { border-color: rgba(255, 255, 255, 0.3); background-color: rgba(255, 255, 255, 0.05); }
+        .btn-primary { padding: 0.625rem 1.25rem; background-color: #ededed; color: #000; font-size: 0.875rem; font-weight: 600; border-radius: 0.5rem; display: flex; align-items: center; gap: 0.5rem; transition: all 0.2s; }
+        .btn-primary:hover:not(:disabled) { background-color: #fff; box-shadow: 0 0 15px rgba(255,255,255,0.2); }
+        .btn-secondary { padding: 0.625rem 1.25rem; background-color: rgba(255,255,255,0.05); color: #e4e4e7; border: 1px solid rgba(255,255,255,0.1); font-size: 0.875rem; font-weight: 500; border-radius: 0.5rem; display: flex; align-items: center; gap: 0.5rem; transition: all 0.2s; }
+        .btn-secondary:hover:not(:disabled) { background-color: rgba(255,255,255,0.1); }
       `}</style>
       
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       
-      {/* Sleek Minimal Sidebar */}
       <aside className="w-full md:w-[240px] bg-[#050505] border-r border-white/5 flex flex-col shrink-0 sticky top-0 md:h-screen z-40">
         <div className="px-6 py-8 flex items-center gap-3">
-          <div className="w-8 h-8 bg-white rounded flex items-center justify-center text-black font-black text-sm">
-            T
-          </div>
+          <div className="w-8 h-8 bg-white rounded flex items-center justify-center text-black font-black text-sm">T</div>
           <div>
             <h1 className="font-semibold text-zinc-200 tracking-tight text-sm">Thirdwave CRM</h1>
-            <p className="text-[9px] font-mono text-zinc-500 uppercase mt-1 tracking-widest">
-              {isAdmin ? 'ROOT ADMIN' : user?.name}
-            </p>
+            <p className="text-[9px] font-mono text-zinc-500 uppercase mt-1 tracking-widest">{isAdmin ? 'ROOT ADMIN' : user?.name}</p>
           </div>
         </div>
         
@@ -932,34 +935,22 @@ const DashboardLayout = () => {
             const active = tab === id;
             return (
               <button
-                key={id}
-                onClick={() => setTab(id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all group ${
-                  active
-                    ? 'bg-white/10 text-white'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
+                key={id} onClick={() => setTab(id)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all group ${active ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
-                <div className="flex items-center gap-3">
-                  <Icon className={`w-4 h-4 ${active ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-400'}`} />
-                  {label}
-                </div>
+                <div className="flex items-center gap-3"><Icon className={`w-4 h-4 ${active ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-400'}`} />{label}</div>
               </button>
             );
           })}
         </nav>
         
         <div className="p-4 mt-auto">
-          <button
-            onClick={logout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-medium text-zinc-500 hover:text-white hover:bg-white/5 transition-colors"
-          >
+          <button onClick={logout} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-medium text-zinc-500 hover:text-white hover:bg-white/5 transition-colors">
             <LogOut className="w-3.5 h-3.5" /> Terminate Session
           </button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <main className="flex-1 p-5 sm:p-10 max-w-6xl mx-auto w-full">
         {tab === 'superadmin' && isAdmin   && <SuperAdminView  showMessage={showMessage} />}
         {tab === 'dashboard'               && <DashboardView   showMessage={showMessage} />}
@@ -976,11 +967,7 @@ const DashboardLayout = () => {
 // ══════════════════════════════════════════════════════════════
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
-  if (loading) return (
-    <div className="h-screen flex items-center justify-center bg-black">
-      <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
-    </div>
-  );
+  if (loading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="w-8 h-8 animate-spin text-zinc-500" /></div>;
   return user ? children : <Navigate to="/auth" replace />;
 };
 
@@ -995,11 +982,7 @@ export default function App() {
             </AuthContext.Consumer>
           } />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={
-            <ProtectedRoute>
-              <DashboardLayout />
-            </ProtectedRoute>
-          } />
+          <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Router>
