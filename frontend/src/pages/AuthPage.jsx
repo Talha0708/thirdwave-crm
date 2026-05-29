@@ -207,7 +207,7 @@ const AuthPage = () => {
             </h2>
             <div className="space-y-6 text-zinc-400 text-lg leading-relaxed">
               <p>
-                "While scaling Aurelian, I realized that handling hundreds of customer messages manually wasn't just tedious—it was actively hindering our growth. Marketing campaigns would drive traffic, but the operational bottleneck of customer service meant we were leaving money on the table."
+                "Thirdwave CRM is an AI-powered customer relationship management platform engineered exclusively for the operational demands of modern e-commerce. By unifying Facebook, WhatsApp, and critical messaging channels into a single intelligent architecture, the system automates the entire customer communication lifecycle — from initial inquiry through to conversion — eliminating the response delays, lead leakage, and manual bottlenecks that consistently undermine revenue at scale. Every inbound message is handled instantly, accurately, and in brand voice, with automated lead qualification, objection handling, and follow-up sequences executing without human intervention. Built on proprietary infrastructure rather than generic third-party platforms, Thirdwave CRM was designed with one mandate: to close the gap between customer intent and business response — and to do so with the precision, consistency, and intelligence that growth-stage e-commerce operations demand."
               </p>
               <p>
                 "Thirdwave Future Tech wasn't built as a theoretical software project. It was coded from necessity. We bypassed generic third-party platforms to build a custom architecture that directly solves the operational pain points of modern e-commerce."
@@ -220,7 +220,7 @@ const AuthPage = () => {
               </div>
               <div>
                 <p className="text-white font-medium">Talha Belal</p>
-                <p className="text-sm text-zinc-500">Founder & MD</p>
+                <p className="text-sm text-zinc-500">Founder & CEO</p>
               </div>
             </div>
           </div>

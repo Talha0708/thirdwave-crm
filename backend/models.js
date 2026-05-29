@@ -49,6 +49,10 @@ const ShopSchema = new mongoose.Schema({
     metaPageId:      { type: String, default: '' },
     metaAccessToken: { type: String, default: '' }, // Encrypted token will sit here
 
+    // 🔥 WhatsApp integration
+    whatsappPhoneNumberId: { type: String, default: '' },
+    whatsappAccessToken:   { type: String, default: '' }, // Encrypted token
+
     // AI config
     isAIActive:   { type: Boolean, default: false },
     systemPrompt: { type: String,  default: 'You are a smart sales assistant.' },
@@ -56,7 +60,7 @@ const ShopSchema = new mongoose.Schema({
     // Admin SaaS controls
     isActive: { type: Boolean, default: true },   // 1-click shop suspend
     
-    // 🔥 UPDATED PLANS TO MATCH NEW BUSINESS STRATEGY
+    // UPDATED PLANS TO MATCH NEW BUSINESS STRATEGY
     plan: {
         type:    String,
         enum:    ['Starter', 'Business', 'Enterprise'],
@@ -89,6 +93,17 @@ const ProductSchema = new mongoose.Schema({
         type:     Number,
         required: true,
         min:      0,
+    },
+    // 🔥 Added Size and Color for better inventory management
+    size: { 
+        type: String, 
+        default: 'M',
+        trim: true 
+    },
+    color: { 
+        type: String, 
+        default: '',
+        trim: true 
     },
     category: { type: String, default: 'General', trim: true },
     isActive:  { type: Boolean, default: true },

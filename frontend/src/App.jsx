@@ -4,12 +4,11 @@ import {
   LayoutDashboard, ShoppingCart, Package, Settings,
   Plus, Save, Power, DollarSign, Info, X, CheckCircle,
   Loader2, Trash2, LogOut, Shield, Users, Activity,
-  RefreshCw, TrendingUp, Zap, KeyRound, Lock
+  RefreshCw, TrendingUp, Zap, KeyRound, Lock, MessageCircle
 } from 'lucide-react';
-
 import { AuthProvider, AuthContext } from './context/AuthContext';
-import AuthPage from './pages/AuthPage';
-import api from './api';
+import AuthPage from './pages/AuthPage'; // নিশ্চিত করুন এই পাথটি সঠিক
+import api from './api/axios'; // নিশ্চিত করুন আপনার axios api ফাইলের পাথটি সঠিক
 
 // ── Enterprise Plan Config ────────────────────────────────────
 const PLAN_LIMITS = { Starter: 3000, Business: 8000, Enterprise: null };
@@ -27,34 +26,28 @@ const Toast = ({ message, type, onClose }) => {
     const t = setTimeout(onClose, 3500);
     return () => clearTimeout(t);
   }, [message, onClose]);
-
   return (
     <div className={`fixed top-5 right-5 z-[9999] flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl text-white text-sm font-semibold transition-all duration-300
       ${isError ? 'bg-red-600' : 'bg-gray-950 border border-gray-800'}`}>
-      {isError
-        ? <Info className="w-4 h-4 shrink-0 text-red-200" />
-        : <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400" />}
-      <span>{message}</span>
-      <button onClick={onClose} className="ml-2 opacity-60 hover:opacity-100 transition-opacity">
-        <X className="w-4 h-4" />
-      </button>
+      {isError ? <X className="w-5 h-5 text-red-200" /> : <CheckCircle className="w-5 h-5 text-emerald-400" />}
+      {message}
     </div>
   );
 };
 
 // ── Skeleton Loader ───────────────────────────────────────────
 const TableSkeleton = ({ columns }) => (
-  <tbody>
+  <>
     {[1, 2, 3, 4].map(r => (
-      <tr key={r} className="border-b border-gray-100 animate-pulse">
+      <tr key={r} className="border-b border-gray-50">
         {Array(columns).fill(0).map((_, c) => (
-          <td key={c} className="p-4">
-            <div className="h-4 bg-gray-100 rounded-lg w-3/4" />
+          <td key={c} className="px-6 py-4">
+            <div className="h-4 bg-gray-100 rounded animate-pulse w-3/4"></div>
           </td>
         ))}
       </tr>
     ))}
-  </tbody>
+  </>
 );
 
 // ── Stat Card ─────────────────────────────────────────────────
@@ -71,16 +64,13 @@ const StatCard = ({ icon, label, value, variant = 'default', loading }) => {
     purple:  'text-purple-400 opacity-20',
     default: 'text-gray-300',
   };
-
   return (
     <div className={`relative rounded-2xl p-6 overflow-hidden shadow-sm ${styles[variant]}`}>
       <div className={`absolute -bottom-4 -right-4 w-28 h-28 ${iconStyles[variant]}`}>
         {icon}
       </div>
-      <p className={`text-xs font-black uppercase tracking-widest mb-2 opacity-60`}>{label}</p>
-      {loading
-        ? <div className="h-9 w-24 rounded-xl bg-current opacity-10 animate-pulse" />
-        : <h3 className="text-4xl font-black leading-none">{value}</h3>}
+      <p className="text-xs font-black uppercase tracking-widest mb-2 opacity-60">{label}</p>
+      {loading ? <Loader2 className="w-6 h-6 animate-spin mt-2" /> : <h3 className="text-3xl font-black">{value}</h3>}
     </div>
   );
 };
@@ -95,7 +85,6 @@ const SuperAdminView = ({ showMessage }) => {
   const [showCreateModal, setShowCreate] = useState(false);
   const [clientData, setClientData]     = useState({ name: '', email: '', password: '', shopName: '', plan: 'Starter' });
   const [creating, setCreating]         = useState(false);
-
   const [selectedShop, setSelectedShop]   = useState(null);
   const [showSubModal, setShowSubModal]   = useState(false);
   const [selectedAction, setSelectedAction] = useState('RENEW');
@@ -174,69 +163,66 @@ const SuperAdminView = ({ showMessage }) => {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="space-y-8 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-        <div>
-          <h2 className="text-3xl font-black text-gray-900 flex items-center gap-3">
-            <Shield className="w-8 h-8 text-purple-600" /> Control Center
-          </h2>
-          <p className="text-gray-500 mt-1 font-medium text-sm">Manage Thirdwave CRM clients and subscriptions</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-purple-100 text-purple-600 flex items-center justify-center rounded-xl shadow-inner">
+            <Shield className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Control Center</h1>
+            <p className="text-sm font-bold text-gray-400">Manage Thirdwave CRM clients and subscriptions</p>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={fetchAdminData} className="p-2.5 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
-            <RefreshCw className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="bg-purple-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-purple-700 active:scale-95 transition-all shadow-lg shadow-purple-200"
-          >
-            <Plus className="w-4 h-4" /> Create Client
-          </button>
-        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="bg-purple-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-purple-700 active:scale-95 transition-all shadow-lg shadow-purple-200"
+        >
+          <Plus className="w-4 h-4" /> Create Client
+        </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard loading={loading} variant="dark"    icon={<Users    className="w-full h-full" />} label="Total Users"      value={stats.totalUsers} />
         <StatCard loading={loading} variant="default" icon={<Package  className="w-full h-full" />} label="Registered Shops" value={stats.totalShops} />
-        <StatCard loading={loading} variant="success" icon={<Activity className="w-full h-full" />} label="Active AI Bots"   value={stats.activeShops} />
+        <StatCard loading={loading} variant="success" icon={<Zap className="w-full h-full" />} label="Active AI Bots"   value={stats.activeShops} />
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-          <h3 className="text-xs font-black uppercase tracking-widest text-gray-500">Client Directory</h3>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-6 border-b border-gray-100">
+          <h2 className="text-lg font-black text-gray-900 flex items-center gap-2"><KeyRound className="w-5 h-5" /> Client Directory</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="text-xs uppercase tracking-widest text-gray-400 border-b border-gray-100">
-                <th className="px-6 py-4 font-black">Shop</th>
-                <th className="px-6 py-4 font-black">Plan & Usage</th>
-                <th className="px-6 py-4 font-black text-center">Status</th>
-                <th className="px-6 py-4 font-black text-right">Actions</th>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                {['Shop', 'Plan & Usage', 'Status', 'Actions'].map(h => (
+                  <th key={h} className="px-6 py-4 text-xs font-black uppercase text-gray-400 tracking-wider">{h}</th>
+                ))}
               </tr>
             </thead>
+            <tbody className="divide-y divide-gray-50">
             {loading ? <TableSkeleton columns={4} /> : (
-              <tbody className="divide-y divide-gray-50 text-sm">
+              <>
                 {shops.length === 0 && (
-                  <tr><td colSpan={4} className="p-10 text-center text-gray-400 font-medium">No clients found.</td></tr>
+                  <tr><td colSpan="4" className="px-6 py-12 text-center text-gray-500 font-bold">No clients found.</td></tr>
                 )}
                 {shops.map(shop => {
                   const limit        = PLAN_LIMITS[shop.plan];
                   const usagePct     = limit ? Math.min(100, (shop.monthlyMessageCount / limit) * 100) : 0;
                   const isWarning    = usagePct >= 90;
-
                   return (
-                    <tr key={shop._id} className="hover:bg-gray-50/70 transition-colors">
+                    <tr key={shop._id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-6 py-4">
-                        <p className="font-bold text-gray-900">{shop.shopName}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{shop.userId?.name} · {shop.userId?.email}</p>
+                        <p className="font-black text-gray-900">{shop.shopName}</p>
+                        <p className="text-xs font-bold text-gray-400 mt-0.5">{shop.userId?.name} · {shop.userId?.email}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <span className="text-xs font-black px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 border border-purple-200">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="px-2.5 py-1 bg-gray-100 text-gray-800 text-[10px] font-black uppercase tracking-widest rounded">
                             {shop.plan}
                           </span>
                           <span className={`text-xs font-bold ${isWarning ? 'text-red-600' : 'text-gray-400'}`}>
@@ -244,7 +230,7 @@ const SuperAdminView = ({ showMessage }) => {
                           </span>
                         </div>
                         {limit && (
-                          <div className="w-28 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all ${isWarning ? 'bg-red-500' : 'bg-emerald-500'}`}
                               style={{ width: `${usagePct}%` }}
@@ -252,7 +238,7 @@ const SuperAdminView = ({ showMessage }) => {
                           </div>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-6 py-4">
                         <button
                           onClick={() => toggleShopStatus(shop._id)}
                           className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all border ${
@@ -264,7 +250,7 @@ const SuperAdminView = ({ showMessage }) => {
                           {shop.isActive ? 'ACTIVE' : 'SUSPENDED'}
                         </button>
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4">
                         <button
                           onClick={() => openSubModal(shop)}
                           className="px-4 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-bold hover:bg-black transition-colors"
@@ -275,8 +261,9 @@ const SuperAdminView = ({ showMessage }) => {
                     </tr>
                   );
                 })}
-              </tbody>
+              </>
             )}
+            </tbody>
           </table>
         </div>
       </div>
@@ -300,7 +287,7 @@ const SuperAdminView = ({ showMessage }) => {
                 />
               </FormField>
             ))}
-            <FormField label="Initial Plan">
+            <FormField label="Subscription Plan">
               <select
                 className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-sm outline-none focus:border-gray-900"
                 value={clientData.plan}
@@ -325,19 +312,20 @@ const SuperAdminView = ({ showMessage }) => {
       {/* Subscription Modal */}
       {showSubModal && selectedShop && (
         <Modal title="Manage Subscription" onClose={() => setShowSubModal(false)}>
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
-            <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Selected Shop</p>
-            <p className="font-black text-gray-900">{selectedShop.shopName}</p>
-            <p className="text-sm text-purple-600 font-bold mt-1">
-              Current Plan: {selectedShop.plan} · {selectedShop.monthlyMessageCount.toLocaleString()} msgs used
-            </p>
-          </div>
-
-          <form onSubmit={handleSubscriptionUpdate} className="space-y-3">
+          <form onSubmit={handleSubscriptionUpdate} className="space-y-5">
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Selected Shop</p>
+              <p className="font-black text-gray-900 text-lg">{selectedShop.shopName}</p>
+              <p className="text-xs font-bold text-gray-500 mt-1">
+                Current Plan: {selectedShop.plan} · {selectedShop.monthlyMessageCount.toLocaleString()} msgs used
+              </p>
+            </div>
+            
+            <div className="space-y-3">
             {[
-              { value: 'RENEW',   icon: <RefreshCw className="w-4 h-4" />,   label: 'Renew Current Plan',      desc: 'Resets usage counter and starts a new 30-day cycle.' },
-              { value: 'UPGRADE', icon: <TrendingUp className="w-4 h-4" />,  label: 'Upgrade / Change Plan',   desc: 'Moves client to a different plan and resets billing cycle.' },
-              { value: 'TOPUP',   icon: <Zap className="w-4 h-4" />,         label: 'Emergency Top-Up',        desc: 'Resets usage only — billing date stays the same.' },
+              { value: 'RENEW',   icon: <RefreshCw className="w-5 h-5 text-emerald-500" />, label: 'Renew Current Plan',      desc: 'Resets usage counter and starts a new 30-day cycle.' },
+              { value: 'UPGRADE', icon: <TrendingUp className="w-5 h-5 text-purple-500" />,  label: 'Upgrade / Change Plan',   desc: 'Moves client to a different plan and resets billing cycle.' },
+              { value: 'TOPUP',   icon: <Zap className="w-5 h-5 text-blue-500" />,           label: 'Emergency Top-Up',       desc: 'Resets usage only — billing date stays the same.' },
             ].map(opt => (
               <label
                 key={opt.value}
@@ -352,16 +340,17 @@ const SuperAdminView = ({ showMessage }) => {
                   className="mt-0.5 w-4 h-4 accent-gray-900"
                 />
                 <div>
-                  <span className="flex items-center gap-1.5 font-bold text-sm text-gray-900">
+                  <div className="flex items-center gap-2 font-black text-gray-900">
                     {opt.icon} {opt.label}
-                  </span>
-                  <span className="text-xs text-gray-500 mt-0.5 block">{opt.desc}</span>
+                  </div>
+                  <p className="text-xs font-bold text-gray-500 mt-1 leading-relaxed">{opt.desc}</p>
                 </div>
               </label>
             ))}
+            </div>
 
             {selectedAction === 'UPGRADE' && (
-              <div className="pl-4">
+              <div className="animate-in slide-in-from-top-2 duration-200">
                 <select
                   value={newPlan}
                   onChange={e => setNewPlan(e.target.value)}
@@ -394,18 +383,16 @@ const SuperAdminView = ({ showMessage }) => {
 const DashboardView = ({ showMessage }) => {
   const [stats, setStats]   = useState({ totalOrders: 0, totalRevenue: 0 });
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     api.get('/analytics')
       .then(res => setStats({ totalOrders: res.data.totalOrders ?? 0, totalRevenue: res.data.totalRevenue ?? 0 }))
       .catch(() => showMessage('Failed to load analytics.', 'error'))
       .finally(() => setLoading(false));
   }, [showMessage]);
-
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <h2 className="text-3xl font-black text-gray-900 mb-8 tracking-tight">Dashboard Overview</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <h1 className="text-2xl font-black text-gray-900">Dashboard Overview</h1>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatCard loading={loading} variant="success" icon={<DollarSign className="w-full h-full" />}
           label="Total Revenue" value={`৳ ${stats.totalRevenue.toLocaleString()}`} />
         <StatCard loading={loading} variant="default" icon={<ShoppingCart className="w-full h-full" />}
@@ -430,14 +417,12 @@ const ORDER_STATUSES = Object.keys(STATUS_STYLES);
 const OrdersView = ({ showMessage }) => {
   const [orders, setOrders]   = useState([]);
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     api.get('/orders')
       .then(res => setOrders(res.data?.orders ?? []))
       .catch(() => showMessage('Failed to load orders.', 'error'))
       .finally(() => setLoading(false));
   }, [showMessage]);
-
   const handleStatusChange = async (id, status) => {
     try {
       await api.put(`/orders/${id}/status`, { status });
@@ -447,38 +432,38 @@ const OrdersView = ({ showMessage }) => {
       showMessage('Failed to update status.', 'error');
     }
   };
-
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <h2 className="text-3xl font-black text-gray-900 mb-8">Order Management</h2>
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <h1 className="text-2xl font-black text-gray-900">Order Management</h1>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left whitespace-nowrap">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
-              <tr className="bg-gray-50 text-xs uppercase tracking-widest text-gray-400 border-b border-gray-100">
+              <tr className="bg-gray-50 border-b border-gray-100">
                 {['Customer', 'Phone', 'Product', 'Address', 'Total', 'Status'].map(h => (
-                  <th key={h} className="px-6 py-4 font-black">{h}</th>
+                  <th key={h} className="px-6 py-4 text-xs font-black uppercase text-gray-400 tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
+            <tbody className="divide-y divide-gray-50">
             {loading ? <TableSkeleton columns={6} /> : (
-              <tbody className="divide-y divide-gray-50 text-sm">
+              <>
                 {orders.length === 0
-                  ? <tr><td colSpan={6} className="p-10 text-center text-gray-400 font-medium">No orders yet.</td></tr>
+                  ? <tr><td colSpan="6" className="px-6 py-12 text-center text-gray-500 font-bold">No orders yet.</td></tr>
                   : orders.map(order => (
-                    <tr key={order._id} className="hover:bg-gray-50/70 transition-colors">
+                    <tr key={order._id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-6 py-4 font-bold text-gray-900">{order.customerName}</td>
-                      <td className="px-6 py-4 text-gray-500 font-mono text-xs">{order.phoneNumber}</td>
+                      <td className="px-6 py-4 font-mono text-sm text-gray-600">{order.phoneNumber}</td>
                       <td className="px-6 py-4">
-                        <p className="font-semibold text-gray-900">{order.productName}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs font-mono font-bold bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded">
+                        <p className="font-bold text-gray-900">{order.productName}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="px-2 py-0.5 bg-gray-100 text-[10px] font-black tracking-widest uppercase rounded">
                             #{order.productCode}
                           </span>
-                          <span className="text-xs text-gray-400 font-bold">Size: {order.productSize}</span>
+                          <span className="text-xs font-bold text-gray-500">Size: {order.productSize}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-gray-500 max-w-[180px] truncate">{order.address}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600 max-w-[200px] truncate">{order.address}</td>
                       <td className="px-6 py-4 font-black text-gray-900">৳ {order.totalPrice?.toLocaleString()}</td>
                       <td className="px-6 py-4">
                         <select
@@ -492,8 +477,9 @@ const OrdersView = ({ showMessage }) => {
                     </tr>
                   ))
                 }
-              </tbody>
+              </>
             )}
+            </tbody>
           </table>
         </div>
       </div>
@@ -510,7 +496,7 @@ const InventoryView = ({ showMessage }) => {
   const [showAddModal, setShowAdd]    = useState(false);
   const [newProduct, setNewProduct]   = useState({ name: '', code: '', price: '' });
   const [saving, setSaving]           = useState(false);
-
+  
   const loadProducts = useCallback(async () => {
     setLoading(true);
     try {
@@ -522,9 +508,9 @@ const InventoryView = ({ showMessage }) => {
       setLoading(false);
     }
   }, [showMessage]);
-
+  
   useEffect(() => { loadProducts(); }, [loadProducts]);
-
+  
   const handleAddProduct = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -540,7 +526,7 @@ const InventoryView = ({ showMessage }) => {
       setSaving(false);
     }
   };
-
+  
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this product?')) return;
     try {
@@ -551,11 +537,11 @@ const InventoryView = ({ showMessage }) => {
       showMessage(err.response?.data?.error || 'Delete failed.', 'error');
     }
   };
-
+  
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-black text-gray-900">Inventory</h2>
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-black text-gray-900">Inventory</h1>
         <button
           onClick={() => setShowAdd(true)}
           className="bg-gray-900 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-black active:scale-95 transition-all shadow-md"
@@ -563,26 +549,26 @@ const InventoryView = ({ showMessage }) => {
           <Plus className="w-4 h-4" /> Add Product
         </button>
       </div>
-
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <table className="w-full text-left">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-gray-50 text-xs uppercase tracking-widest text-gray-400 border-b border-gray-100">
+            <tr className="bg-gray-50 border-b border-gray-100 text-xs font-black uppercase text-gray-400 tracking-wider">
               {['Code', 'Name', 'Price', ''].map((h, i) => (
-                <th key={i} className={`px-6 py-4 font-black ${i === 3 ? 'text-right' : ''}`}>{h}</th>
+                <th key={i} className={`px-6 py-4 ${i === 3 ? 'text-right' : ''}`}>{h}</th>
               ))}
             </tr>
           </thead>
+          <tbody className="divide-y divide-gray-50">
           {loading ? <TableSkeleton columns={4} /> : (
-            <tbody className="divide-y divide-gray-50 text-sm">
+            <>
               {products.length === 0
-                ? <tr><td colSpan={4} className="p-10 text-center text-gray-400 font-medium">No products yet.</td></tr>
+                ? <tr><td colSpan="4" className="px-6 py-12 text-center text-gray-500 font-bold">No products yet.</td></tr>
                 : products.map(p => (
-                  <tr key={p._id} className="hover:bg-gray-50/70 transition-colors">
-                    <td className="px-6 py-4 font-mono font-bold text-blue-600">{p.code}</td>
-                    <td className="px-6 py-4 font-semibold text-gray-900">{p.name}</td>
-                    <td className="px-6 py-4 font-bold text-gray-900">৳ {p.price?.toLocaleString()}</td>
-                    <td className="px-6 py-4 text-right">
+                  <tr key={p._id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4 font-mono font-bold text-gray-600">{p.code}</td>
+                    <td className="px-6 py-4 font-bold text-gray-900">{p.name}</td>
+                    <td className="px-6 py-4 font-black text-gray-900">৳ {p.price?.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-right flex justify-end gap-2">
                       <button
                         onClick={() => handleDelete(p._id)}
                         className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
@@ -593,8 +579,9 @@ const InventoryView = ({ showMessage }) => {
                   </tr>
                 ))
               }
-            </tbody>
+            </>
           )}
+          </tbody>
         </table>
       </div>
 
@@ -625,7 +612,7 @@ const InventoryView = ({ showMessage }) => {
                 onChange={e => setNewProduct({ ...newProduct, price: e.target.value })}
               />
             </FormField>
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex items-center justify-end gap-3 mt-6 pt-6 border-t border-gray-100">
               <button
                 type="button" onClick={() => setShowAdd(false)}
                 className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
@@ -651,13 +638,16 @@ const InventoryView = ({ showMessage }) => {
 //  Settings View (Integration Hub)
 // ══════════════════════════════════════════════════════════════
 const SettingsView = ({ showMessage }) => {
-  const [config, setConfig]   = useState({ isAIActive: true, systemPrompt: '', metaPageId: '' });
+  const [config, setConfig]   = useState({ isAIActive: true, systemPrompt: '', metaPageId: '', whatsappPhoneNumberId: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   
   // State for manual token integration
   const [manualIntegration, setManualIntegration] = useState({ pageId: '', token: '' });
-  const [connecting, setConnecting] = useState(false);
+  const [connectingFb, setConnectingFb] = useState(false);
+
+  const [waIntegration, setWaIntegration] = useState({ phoneId: '', token: '' });
+  const [connectingWa, setConnectingWa] = useState(false);
 
   useEffect(() => {
     api.get('/shop/config')
@@ -689,102 +679,165 @@ const SettingsView = ({ showMessage }) => {
     }
   };
 
-  const handleManualConnect = async (e) => {
+  // Facebook Connect
+  const handleFacebookConnect = async (e) => {
     e.preventDefault();
     if (!manualIntegration.pageId || !manualIntegration.token) {
       return showMessage('Please enter both Page ID and Access Token', 'error');
     }
-    setConnecting(true);
+    setConnectingFb(true);
     try {
       await api.put('/shop/manual-facebook', {
         metaPageId: manualIntegration.pageId,
         metaAccessToken: manualIntegration.token
       });
-      showMessage('Page securely connected!', 'success');
+      showMessage('Facebook Page securely connected!', 'success');
       setConfig(prev => ({ ...prev, metaPageId: manualIntegration.pageId }));
-      setManualIntegration({ pageId: '', token: '' }); // Clear token immediately for security
+      setManualIntegration({ pageId: '', token: '' }); // Clear token immediately
     } catch (err) {
       showMessage(err.response?.data?.error || 'Failed to connect page.', 'error');
     } finally {
-      setConnecting(false);
+      setConnectingFb(false);
+    }
+  };
+
+  // WhatsApp Connect
+  const handleWhatsappConnect = async (e) => {
+    e.preventDefault();
+    if (!waIntegration.phoneId || !waIntegration.token) {
+      return showMessage('Please enter both Phone ID and Access Token', 'error');
+    }
+    setConnectingWa(true);
+    try {
+      await api.put('/shop/manual-whatsapp', {
+        whatsappPhoneNumberId: waIntegration.phoneId,
+        whatsappAccessToken: waIntegration.token
+      });
+      showMessage('WhatsApp securely connected!', 'success');
+      setConfig(prev => ({ ...prev, whatsappPhoneNumberId: waIntegration.phoneId }));
+      setWaIntegration({ phoneId: '', token: '' }); // Clear token immediately
+    } catch (err) {
+      showMessage(err.response?.data?.error || 'Failed to connect WhatsApp.', 'error');
+    } finally {
+      setConnectingWa(false);
     }
   };
 
   if (loading) return (
-    <div className="p-8 max-w-4xl mx-auto space-y-6">
-      <div className="h-32 bg-gray-100 rounded-2xl animate-pulse" />
-      <div className="h-64 bg-gray-100 rounded-2xl animate-pulse" />
+    <div className="flex justify-center p-12">
+      <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
     </div>
   );
 
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-6">
-      <h2 className="text-3xl font-black text-gray-900 tracking-tight">Integration Hub</h2>
+    <div className="space-y-8 max-w-4xl animate-in fade-in duration-500">
+      <h1 className="text-2xl font-black text-gray-900 mb-6">Integration Hub</h1>
 
-      {/* Manual Integration Section */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+      {/* Manual Facebook Integration Section */}
+      <form onSubmit={handleFacebookConnect} className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+            <Lock className="w-5 h-5" />
+          </div>
           <div>
-            <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
-              <KeyRound className="w-5 h-5 text-purple-600" /> Secure Facebook Integration
-            </h3>
-            <p className="text-gray-500 text-sm mt-1">Connect your page via Developer Access Token.</p>
+            <h3 className="font-black text-gray-900 text-base">Secure Facebook Integration</h3>
+            <p className="text-xs font-bold text-gray-400">Connect your page via Developer Access Token.</p>
           </div>
           {config.metaPageId && (
-            <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-black rounded-lg flex items-center gap-1.5">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            <span className="ml-auto px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black tracking-widest uppercase rounded-full border border-emerald-200">
               CONNECTED
             </span>
           )}
         </div>
-        
-        <div className="p-6 bg-gray-50/50">
-          <form onSubmit={handleManualConnect} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField label="Facebook Page ID">
-                <input
-                  type="text"
-                  required
-                  placeholder={config.metaPageId || "e.g. 108357504425089"}
-                  className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm font-mono font-bold outline-none focus:border-purple-500 transition-colors"
-                  value={manualIntegration.pageId}
-                  onChange={e => setManualIntegration({ ...manualIntegration, pageId: e.target.value })}
-                />
-              </FormField>
-              
-              <FormField label="Page Access Token">
-                <input
-                  type="password"
-                  required
-                  placeholder="Paste EAAG... token here"
-                  className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm font-mono outline-none focus:border-purple-500 transition-colors"
-                  value={manualIntegration.token}
-                  onChange={e => setManualIntegration({ ...manualIntegration, token: e.target.value })} 
-                />
-              </FormField>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-              <p className="text-xs font-semibold text-gray-400 flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5" /> Your token is encrypted via AES-256 before saving.
-              </p>
-              <button
-                type="submit" disabled={connecting}
-                className="w-full sm:w-auto px-6 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black active:scale-95 transition-all shadow-md disabled:opacity-60 flex items-center justify-center gap-2"
-              >
-                {connecting && <Loader2 className="w-4 h-4 animate-spin" />}
-                Save & Secure Connection
-              </button>
-            </div>
-          </form>
+        <div className="flex flex-col sm:flex-row gap-3 mt-4">
+          <div className="flex-1">
+            <input
+              type="text" required
+              placeholder={config.metaPageId || "e.g. 108357504425089"}
+              className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm font-mono font-bold outline-none focus:border-blue-500 transition-colors"
+              value={manualIntegration.pageId}
+              onChange={e => setManualIntegration({ ...manualIntegration, pageId: e.target.value })}
+            />
+          </div>
+          <div className="flex-1">
+            <input
+              type="password" required
+              placeholder="Paste EAAG... token here"
+              className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm font-mono outline-none focus:border-blue-500 transition-colors"
+              value={manualIntegration.token}
+              onChange={e => setManualIntegration({ ...manualIntegration, token: e.target.value })}
+            />
+          </div>
         </div>
-      </div>
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <p className="text-xs font-bold text-gray-400 flex items-center gap-1.5">
+            <Shield className="w-3.5 h-3.5" /> Your token is encrypted via AES-256 before saving.
+          </p>
+          <button
+            type="submit" disabled={connectingFb}
+            className="w-full sm:w-auto px-6 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black active:scale-95 transition-all shadow-md disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {connectingFb && <Loader2 className="w-4 h-4 animate-spin" />}
+            Save FB Connection
+          </button>
+        </div>
+      </form>
+
+      {/* 🔥 NEW: Manual WhatsApp Integration Section */}
+      <form onSubmit={handleWhatsappConnect} className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 bg-green-50 text-green-600 rounded-lg">
+            <MessageCircle className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-black text-gray-900 text-base">Secure WhatsApp Integration</h3>
+            <p className="text-xs font-bold text-gray-400">Connect via WhatsApp Cloud API Token.</p>
+          </div>
+          {config.whatsappPhoneNumberId && (
+            <span className="ml-auto px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black tracking-widest uppercase rounded-full border border-emerald-200">
+              CONNECTED
+            </span>
+          )}
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 mt-4">
+          <div className="flex-1">
+            <input
+              type="text" required
+              placeholder={config.whatsappPhoneNumberId || "Phone Number ID (e.g. 10456...)"}
+              className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm font-mono font-bold outline-none focus:border-green-500 transition-colors"
+              value={waIntegration.phoneId}
+              onChange={e => setWaIntegration({ ...waIntegration, phoneId: e.target.value })}
+            />
+          </div>
+          <div className="flex-1">
+            <input
+              type="password" required
+              placeholder="Paste EAAG... WA token here"
+              className="w-full p-3 bg-white border border-gray-200 rounded-xl text-sm font-mono outline-none focus:border-green-500 transition-colors"
+              value={waIntegration.token}
+              onChange={e => setWaIntegration({ ...waIntegration, token: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <p className="text-xs font-bold text-gray-400 flex items-center gap-1.5">
+            <Shield className="w-3.5 h-3.5" /> Token is encrypted via AES-256.
+          </p>
+          <button
+            type="submit" disabled={connectingWa}
+            className="w-full sm:w-auto px-6 py-2.5 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 active:scale-95 transition-all shadow-md disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {connectingWa && <Loader2 className="w-4 h-4 animate-spin" />}
+            Save WA Connection
+          </button>
+        </div>
+      </form>
 
       {/* AI Toggle */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex items-center justify-between">
+      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
         <div>
-          <h3 className="font-black text-gray-900">AI Bot Active</h3>
-          <p className="text-sm text-gray-500 mt-1">
+          <h3 className="font-black text-gray-900 flex items-center gap-2"><Power className="w-5 h-5 text-purple-500" /> AI Bot Active</h3>
+          <p className="text-xs font-bold text-gray-500 mt-1">
             {config.isAIActive ? 'Bot is currently replying to messages.' : 'Bot is paused — messages are not being answered.'}
           </p>
         </div>
@@ -797,21 +850,23 @@ const SettingsView = ({ showMessage }) => {
       </div>
 
       {/* System Prompt */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-        <h3 className="text-lg font-black text-gray-900 mb-2">Thirdwave AI Brain</h3>
-        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 text-xs font-semibold p-3 rounded-xl mb-4">
-          ⚠️ Do not remove the <code className="font-mono bg-yellow-100 px-1 rounded">[SYNC: ...]</code> extraction block from the prompt.
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-gray-100 bg-gray-50">
+          <h3 className="font-black text-gray-900 flex items-center gap-2">Thirdwave AI Brain</h3>
+          <p className="text-xs font-bold text-amber-600 mt-1 flex items-center gap-1">
+            <Info className="w-3.5 h-3.5" /> ⚠️ Do not remove the [SYNC: ...] extraction block from the prompt.
+          </p>
         </div>
         <textarea
-          className="w-full h-[380px] p-4 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 font-mono text-xs focus:border-purple-500 outline-none resize-none transition-colors leading-relaxed"
+          className="w-full h-[380px] p-6 bg-white text-gray-800 font-mono text-xs focus:ring-inset focus:ring-2 focus:ring-purple-500 outline-none resize-none transition-all leading-relaxed"
           value={config.systemPrompt || ''}
           onChange={e => setConfig({ ...config, systemPrompt: e.target.value })}
           spellCheck={false}
         />
-        <div className="mt-4 flex justify-end">
+        <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
           <button
             onClick={savePrompt} disabled={saving}
-            className="flex items-center gap-2 px-7 py-3 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-black active:scale-95 transition-all disabled:opacity-60"
+            className="flex items-center justify-center gap-2 px-7 py-3 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-black active:scale-95 transition-all disabled:opacity-60"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             Deploy Updates
@@ -826,22 +881,24 @@ const SettingsView = ({ showMessage }) => {
 //  Shared UI Primitives
 // ══════════════════════════════════════════════════════════════
 const Modal = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-2xl p-7 w-full max-w-md shadow-2xl">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-xl font-black text-gray-900">{title}</h3>
-        <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="flex items-center justify-between p-6 border-b border-gray-100">
+        <h2 className="text-xl font-black text-gray-900">{title}</h2>
+        <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
           <X className="w-5 h-5" />
         </button>
       </div>
-      {children}
+      <div className="p-6">
+        {children}
+      </div>
     </div>
   </div>
 );
 
 const FormField = ({ label, children }) => (
   <div>
-    <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-1.5">{label}</label>
+    <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-1.5">{label}</label>
     {children}
   </div>
 );
@@ -854,8 +911,9 @@ const DashboardLayout = () => {
   const isAdmin           = user?.role === 'admin';
   const [tab, setTab]     = useState(isAdmin ? 'superadmin' : 'dashboard');
   const [toast, setToast] = useState(null);
-  const showMessage       = useCallback((msg, type) => setToast({ message: msg, type }), []);
-
+  
+  const showMessage = useCallback((msg, type) => setToast({ message: msg, type }), []);
+  
   const navItems = [
     ...(isAdmin ? [{ id: 'superadmin', label: 'Super Admin', icon: Shield }] : []),
     { id: 'dashboard', label: 'Overview',    icon: LayoutDashboard },
@@ -865,24 +923,24 @@ const DashboardLayout = () => {
   ];
 
   return (
-    <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans">
+    <div className="min-h-screen bg-[#F8F9FA] flex flex-col md:flex-row font-sans selection:bg-purple-200">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
+      
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col z-10 shadow-[2px_0_20px_rgba(0,0,0,0.03)]">
-        <div className="h-16 flex items-center px-6 border-b border-gray-100">
-          <div className="w-8 h-8 bg-gray-950 rounded-lg flex items-center justify-center mr-3">
-            <span className="text-white font-black text-sm">T</span>
+      <aside className="w-full md:w-64 bg-white border-r border-gray-100 flex flex-col shrink-0 sticky top-0 md:h-screen z-40">
+        <div className="p-6 flex items-center gap-3">
+          <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center text-white font-black text-lg shadow-sm">
+            T
           </div>
           <div>
-            <p className="text-sm font-black tracking-tight text-gray-900 leading-none">Thirdwave CRM</p>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+            <h1 className="font-black text-gray-900 tracking-tight text-lg">Thirdwave CRM</h1>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
               {isAdmin ? 'ADMIN' : user?.name}
             </p>
           </div>
         </div>
-
-        <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
+        
+        <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto">
           {navItems.map(({ id, label, icon: Icon }) => {
             const active       = tab === id;
             const isSuperAdmin = id === 'superadmin';
@@ -898,14 +956,14 @@ const DashboardLayout = () => {
                     : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" />
+                <Icon className={`w-4 h-4 ${active ? (isSuperAdmin ? 'text-purple-200' : 'text-gray-300') : ''}`} />
                 {label}
               </button>
             );
           })}
         </nav>
-
-        <div className="p-4 border-t border-gray-100">
+        
+        <div className="p-4 border-t border-gray-50 mt-auto">
           <button
             onClick={logout}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-red-500 hover:bg-red-50 transition-colors"
@@ -916,12 +974,12 @@ const DashboardLayout = () => {
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-y-auto">
-        {tab === 'superadmin' && isAdmin   && <SuperAdminView showMessage={showMessage} />}
-        {tab === 'dashboard'               && <DashboardView  showMessage={showMessage} />}
-        {tab === 'orders'                  && <OrdersView     showMessage={showMessage} />}
-        {tab === 'inventory'               && <InventoryView  showMessage={showMessage} />}
-        {tab === 'settings'                && <SettingsView   showMessage={showMessage} />}
+      <main className="flex-1 p-4 sm:p-8 max-w-6xl mx-auto w-full">
+        {tab === 'superadmin' && isAdmin   && <SuperAdminView  showMessage={showMessage} />}
+        {tab === 'dashboard'               && <DashboardView   showMessage={showMessage} />}
+        {tab === 'orders'                  && <OrdersView      showMessage={showMessage} />}
+        {tab === 'inventory'               && <InventoryView   showMessage={showMessage} />}
+        {tab === 'settings'                && <SettingsView    showMessage={showMessage} />}
       </main>
     </div>
   );
@@ -934,7 +992,7 @@ const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
   if (loading) return (
     <div className="h-screen flex items-center justify-center bg-gray-50">
-      <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
     </div>
   );
   return user ? children : <Navigate to="/auth" replace />;
@@ -945,7 +1003,11 @@ export default function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/auth" element={
+            <AuthContext.Consumer>
+              {({ user }) => !user ? <AuthPage /> : <Navigate to="/dashboard" replace />}
+            </AuthContext.Consumer>
+          } />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={
             <ProtectedRoute>
