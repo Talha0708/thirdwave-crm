@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import AuthPage from './pages/AuthPage'; // নিশ্চিত করুন এই পাথটি সঠিক
-import api from './api/axios'; // নিশ্চিত করুন আপনার axios api ফাইলের পাথটি সঠিক
+import api from './api'; // নিশ্চিত করুন আপনার axios api ফাইলের পাথটি সঠিক
 
 // ── Enterprise Plan Config ────────────────────────────────────
 const PLAN_LIMITS = { Starter: 3000, Business: 8000, Enterprise: null };
