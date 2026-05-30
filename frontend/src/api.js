@@ -1,11 +1,13 @@
 import axios from 'axios';
 
 // ── 1. Base Axios Instance Setup ────────────────────────────
-// Vercel-এর লাইভ লিংক এবং ১৫ সেকেন্ডের টাইমআউট লিমিট সেট করা হলো
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api',
+    // VITE_API_URL এর ঝামেলা বাদ দিয়ে সরাসরি ব্যাকএন্ড লিংক দিয়ে দিলাম
+    baseURL: 'https://thirdwave-crm.vercel.app/api', 
     timeout: 15_000,
 });
+
+// ... (নিচের বাকি কোডগুলো আগের মতোই থাকবে)
 
 // ── 2. Request Interceptor: Attach JWT Token ────────────────
 // প্রতিটা এপিআই কলের সাথে লোকাল স্টোরেজ থেকে টোকেন নিয়ে হেডারে পাঠানো হচ্ছে
