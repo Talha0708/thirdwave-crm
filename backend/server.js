@@ -332,7 +332,9 @@ function canProcessShopRPM(shopId, planRpm) {
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const SYNC_RE = /\[?SYNC:\s*(\{[\s\S]*?\})\s*\]?/;
+// ✅ FIX: Greedy match so nested {} in address fields don't truncate the JSON.
+//    Matches from [SYNC: to the very last } before the closing ]
+const SYNC_RE = /\[SYNC:\s*(\{[\s\S]*\})\s*\]/;
 
 async function getAurelianResponse(shop, psid, text, imgUrl = null, isFromQueue = false) {
     const limits = PLAN_LIMITS[shop.plan] ?? PLAN_LIMITS.Starter;
@@ -446,30 +448,32 @@ async function processOrderSync(shop, aiResponse) {
         let finalTotal = deliveryCharge;
         const processedItems = [];
 
-        // Loop through the "items" array extracted from AI JSON
-        if (data.items && Array.isArray(data.items)) {
+        // ✅ Exact code-only lookup — safe, fast, no ReDoS risk
+        if (Array.isArray(data.items)) {
             for (const item of data.items) {
                 const providedCode = (item.c || '').trim().toUpperCase();
                 if (!providedCode) continue;
 
-                // Find actual product in DB to get real price and name
                 const product = await Product.findOne({ shopId: shop._id, code: providedCode });
-                if (product) {
-                    const qty = parseInt(item.qty) || 1;
-                    const unitPrice = product.price || 0;
-                    const subTotal = unitPrice * qty;
-                    finalTotal += subTotal;
-
-                    processedItems.push({
-                        productCode: product.code,
-                        productName: product.name,
-                        size: item.s || 'FREE SIZE',
-                        color: item.color || '',
-                        quantity: qty,
-                        unitPrice: unitPrice,
-                        subTotal: subTotal
-                    });
+                if (!product) {
+                    console.log(`⚠️  No product found for code "${providedCode}"`);
+                    continue;
                 }
+
+                const qty       = Math.max(1, parseInt(item.qty) || 1);
+                const unitPrice = product.price || 0;
+                const subTotal  = unitPrice * qty;
+                finalTotal     += subTotal;
+
+                processedItems.push({
+                    productCode: product.code,
+                    productName: product.name,
+                    size:        item.s     || 'FREE SIZE',
+                    color:       item.color || '',
+                    quantity:    qty,
+                    unitPrice,
+                    subTotal,
+                });
             }
         }
 
@@ -488,7 +492,7 @@ async function processOrderSync(shop, aiResponse) {
             deliveryCharge,
             totalPrice:       finalTotal,
         });
-        console.log(`✅ Multi-Item Order Synced Dynamically! Total: ৳${finalTotal}`);
+        console.log(`✅ Multi-Item Order Synced! Items: ${processedItems.length}, Total: ৳${finalTotal}`);
     } catch (err) {
         console.error('Order sync error:', err.message);
     }
