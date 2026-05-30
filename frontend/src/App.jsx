@@ -1,15 +1,30 @@
 import React, { useState, useEffect, useCallback, useContext, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import {
-  LayoutDashboard, ShoppingCart, Package, Settings,
+  ShoppingCart, Package, Settings,
   Plus, Save, Power, DollarSign, Info, X, CheckCircle,
   Loader2, Trash2, Edit2, LogOut, Shield, Users, Activity,
-  RefreshCw, TrendingUp, Zap, MessageCircle, Facebook,
-  AlertTriangle, ChevronDown, ExternalLink
+  RefreshCw, TrendingUp, Zap, MessageCircle,
+  AlertTriangle, ChevronDown
 } from 'lucide-react';
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import AuthPage from './pages/AuthPage';
 import api from './api';
+
+// Custom inline SVG for Facebook to bypass lucide-react import crashes
+const FacebookIcon = ({ className = "w-5 h-5" }) => (
+  <svg 
+    className={className} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  >
+    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+  </svg>
+);
 
 // ── Enterprise Plan Config ────────────────────────────────────
 const PLAN_LIMITS = { Starter: 2000, Business: 5000, Pro: 15000, Enterprise: null };
@@ -22,6 +37,10 @@ const PLAN_LABELS = {
 const AVAILABLE_SIZES  = ['S', 'M', 'L', 'XL', 'XXL', '3XL', 'FREE SIZE'];
 const ORDER_STATUSES   = ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'];
 const VALID_PLANS      = Object.keys(PLAN_LIMITS);
+
+// ══════════════════════════════════════════════════════════════
+//  Shared UI Primitives
+// ══════════════════════════════════════════════════════════════
 
 const Toast = ({ message, type, onClose }) => {
   if (!message) return null;
@@ -118,6 +137,9 @@ const FormField = ({ label, children, hint }) => (
   </div>
 );
 
+// ══════════════════════════════════════════════════════════════
+//  Super Admin View
+// ══════════════════════════════════════════════════════════════
 const SuperAdminView = ({ showMessage }) => {
   const [stats, setStats]                   = useState({ totalUsers: 0, totalShops: 0, activeShops: 0 });
   const [shops, setShops]                   = useState([]);
@@ -414,6 +436,9 @@ const SuperAdminView = ({ showMessage }) => {
   );
 };
 
+// ══════════════════════════════════════════════════════════════
+//  Dashboard View
+// ══════════════════════════════════════════════════════════════
 const DashboardView = ({ showMessage }) => {
   const [stats, setStats]     = useState({ totalOrders: 0, totalRevenue: 0 });
   const [loading, setLoading] = useState(true);
@@ -440,6 +465,17 @@ const DashboardView = ({ showMessage }) => {
       </div>
     </div>
   );
+};
+
+// ══════════════════════════════════════════════════════════════
+//  Orders View
+// ══════════════════════════════════════════════════════════════
+const STATUS_STYLES = {
+  Pending:   'text-amber-400 bg-amber-400/10 border-amber-400/20',
+  Confirmed: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
+  Shipped:   'text-purple-400 bg-purple-400/10 border-purple-400/20',
+  Delivered: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
+  Cancelled: 'text-red-400 bg-red-400/10 border-red-400/20',
 };
 
 const OrdersView = ({ showMessage }) => {
@@ -550,6 +586,9 @@ const OrdersView = ({ showMessage }) => {
   );
 };
 
+// ══════════════════════════════════════════════════════════════
+//  Inventory View
+// ══════════════════════════════════════════════════════════════
 const InventoryView = ({ showMessage }) => {
   const [products, setProducts]     = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -771,6 +810,9 @@ const InventoryView = ({ showMessage }) => {
   );
 };
 
+// ══════════════════════════════════════════════════════════════
+//  Settings View (Enterprise Integrations)
+// ══════════════════════════════════════════════════════════════
 const SettingsView = ({ showMessage }) => {
   const [config, setConfig]         = useState({ isAIActive: true, systemPrompt: '', metaPageId: '', whatsappPhoneNumberId: '', plan: 'Starter', usage: 0 });
   const [loading, setLoading]       = useState(true);
@@ -819,6 +861,7 @@ const SettingsView = ({ showMessage }) => {
     }
   };
 
+  // Facebook OAuth via FB JS SDK
   const handleFacebookLogin = () => {
     if (!window.FB) return showMessage('Facebook SDK not loaded. Refresh and retry.', 'error');
     setConnectingFb(true);
@@ -945,7 +988,7 @@ const SettingsView = ({ showMessage }) => {
         <div className="bg-[#0A0A0A] border border-white/10 rounded-2xl p-6 shadow-xl space-y-4">
           <div className="flex justify-between items-start">
             <h3 className="font-medium text-zinc-200 flex items-center gap-2">
-              <Facebook className="w-5 h-5 text-blue-500" /> Facebook
+              <FacebookIcon className="w-5 h-5 text-blue-500" /> Facebook
             </h3>
             {config.metaPageId && (
               <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold tracking-widest uppercase rounded">
@@ -959,7 +1002,7 @@ const SettingsView = ({ showMessage }) => {
             disabled={connectingFb}
             className="w-full py-3 bg-[#1877F2] hover:bg-[#166FE5] disabled:opacity-60 text-white font-semibold rounded-lg flex items-center justify-center gap-2 transition-all"
           >
-            {connectingFb ? <Loader2 className="w-5 h-5 animate-spin" /> : <Facebook className="w-5 h-5" />}
+            {connectingFb ? <Loader2 className="w-5 h-5 animate-spin" /> : <FacebookIcon className="w-5 h-5" />}
             {config.metaPageId ? 'Reconnect Page' : 'Login with Facebook'}
           </button>
 
@@ -1034,6 +1077,9 @@ const SettingsView = ({ showMessage }) => {
   );
 };
 
+// ══════════════════════════════════════════════════════════════
+//  Dashboard Layout
+// ══════════════════════════════════════════════════════════════
 const DashboardLayout = () => {
   const { user, logout }  = useContext(AuthContext);
   const isAdmin           = user?.role === 'admin';
@@ -1069,6 +1115,7 @@ const DashboardLayout = () => {
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
 
+      {/* Sidebar */}
       <aside className="w-full md:w-[240px] bg-[#050505] border-r border-white/5 flex flex-col shrink-0 sticky top-0 md:h-screen z-40">
         <div className="px-6 py-8 flex items-center gap-3">
           <div className="w-8 h-8 bg-white rounded flex items-center justify-center text-black font-black text-sm select-none">T</div>
@@ -1110,6 +1157,7 @@ const DashboardLayout = () => {
         </div>
       </aside>
 
+      {/* Main */}
       <main className="flex-1 p-5 sm:p-10 max-w-6xl mx-auto w-full">
         {tab === 'superadmin' && isAdmin && <SuperAdminView showMessage={showMessage} />}
         {tab === 'dashboard'             && <DashboardView  showMessage={showMessage} />}
@@ -1121,6 +1169,9 @@ const DashboardLayout = () => {
   );
 };
 
+// ══════════════════════════════════════════════════════════════
+//  Route Protection & Entry Point
+// ══════════════════════════════════════════════════════════════
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
   if (loading) return (
@@ -1136,11 +1187,8 @@ export default function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          <Route path="/auth" element={
-            <AuthContext.Consumer>
-              {({ user }) => !user ? <AuthPage /> : <Navigate to="/dashboard" replace />}
-            </AuthContext.Consumer>
-          } />
+          {/* ✅ FIX: Avoid nested state consumer block in Route structure */}
+          <Route path="/auth" element={<AuthPage />} />
           <Route path="/"          element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>} />
           <Route path="*"          element={<Navigate to="/dashboard" replace />} />

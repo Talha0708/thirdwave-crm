@@ -3,20 +3,47 @@
 const mongoose = require('mongoose');
 
 // ── User Schema ───────────────────────────────────────────────
-// System er admin ba shop owner der data ekhane thakbe
 const UserSchema = new mongoose.Schema({
-    name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    password: { type: String, required: true },
-    role: { type: String, enum: ['admin', 'user'], default: 'user' },
-    isActive: { type: Boolean, default: true },
+    name: {
+        type:     String,
+        required: true,
+        trim:     true,
+    },
+    email: {
+        type:      String,
+        required:  true,
+        unique:    true,
+        lowercase: true,
+        trim:      true,
+    },
+    password: {
+        type:     String,
+        required: true,
+    },
+    role: {
+        type:    String,
+        enum:    ['admin', 'user'],
+        default: 'user',
+    },
+    isActive: {
+        type:    Boolean,
+        default: true,
+    },
 }, { timestamps: true });
 
 // ── Shop Schema (Tenant Profile) ─────────────────────────────
-// Client der shop er data, Meta/WhatsApp API credentials, ar AI Config ekhane thakbe
 const ShopSchema = new mongoose.Schema({
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    shopName: { type: String, required: true, trim: true },
+    userId: {
+        type:     mongoose.Schema.Types.ObjectId,
+        ref:      'User',
+        required: true,
+        index:    true,
+    },
+    shopName: {
+        type:     String,
+        required: true,
+        trim:     true,
+    },
 
     // Meta / Facebook integration
     metaPageId:      { type: String, default: '' },
@@ -33,10 +60,10 @@ const ShopSchema = new mongoose.Schema({
     // Admin SaaS controls
     isActive: { type: Boolean, default: true },
 
-    // Subscription Plans (Pro plan perfectly added here)
+    // FIX: 'Pro' plan যোগ করা হয়েছে — server.js ও App.jsx-এর PLAN_LIMITS-এর সাথে match করানো হয়েছে
     plan: {
-        type: String,
-        enum: ['Starter', 'Business', 'Pro', 'Enterprise'],
+        type:    String,
+        enum:    ['Starter', 'Business', 'Pro', 'Enterprise'],
         default: 'Starter',
     },
     monthlyMessageCount: { type: Number, default: 0, min: 0 },
@@ -44,14 +71,38 @@ const ShopSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // ── Product Schema ────────────────────────────────────────────
-// Shop er inventory ba product list
 const ProductSchema = new mongoose.Schema({
-    shopId: { type: mongoose.Schema.Types.ObjectId, ref: 'Shop', required: true, index: true },
-    name: { type: String, required: true, trim: true },
-    code: { type: String, required: true, uppercase: true, trim: true },
-    price: { type: Number, required: true, min: 0 },
-    sizes: { type: [String], default: [] }, // Array for multiple sizes
-    color: { type: String, default: '', trim: true },
+    shopId: {
+        type:     mongoose.Schema.Types.ObjectId,
+        ref:      'Shop',
+        required: true,
+        index:    true,
+    },
+    name: {
+        type:     String,
+        required: true,
+        trim:     true,
+    },
+    code: {
+        type:      String,
+        required:  true,
+        uppercase: true,
+        trim:      true,
+    },
+    price: {
+        type:     Number,
+        required: true,
+        min:      0,
+    },
+    sizes: {
+        type:    [String],
+        default: [],
+    },
+    color: {
+        type:    String,
+        default: '',
+        trim:    true,
+    },
     category: { type: String, default: 'General', trim: true },
     isActive:  { type: Boolean, default: true },
 }, { timestamps: true });
@@ -60,7 +111,6 @@ const ProductSchema = new mongoose.Schema({
 ProductSchema.index({ shopId: 1, code: 1 }, { unique: true });
 
 // ── Order Item Sub-Schema ─────────────────────────────────────
-// Ekta order er vitor eker odhik item thakte pare, tai ei sub-schema
 const OrderItemSchema = new mongoose.Schema({
     productCode: { type: String, required: true },
     productName: { type: String, required: true },
@@ -72,31 +122,39 @@ const OrderItemSchema = new mongoose.Schema({
 });
 
 // ── Order Schema ──────────────────────────────────────────────
-// Final order format jeta customer AI ke dibe
 const OrderSchema = new mongoose.Schema({
-    shopId: { type: mongoose.Schema.Types.ObjectId, ref: 'Shop', required: true, index: true },
+    shopId: {
+        type:     mongoose.Schema.Types.ObjectId,
+        ref:      'Shop',
+        required: true,
+        index:    true,
+    },
     customerName: { type: String, required: true, trim: true },
     phoneNumber:  { type: String, required: true, trim: true },
     address:      { type: String, required: true, trim: true },
-    
-    // items array using the Sub-Schema
     items:        [OrderItemSchema],
-    
     deliveryLocation: { type: String, default: '' },
     deliveryCharge:   { type: Number, default: 0, min: 0 },
     totalPrice:       { type: Number, default: 0, min: 0 },
     status: {
-        type: String,
-        enum: ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'],
+        type:    String,
+        enum:    ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'],
         default: 'Pending',
     },
 }, { timestamps: true });
 
 // ── Chat History Schema ───────────────────────────────────────
-// Database e matro last 20 ta message store korar jonno AI history format
 const ChatHistorySchema = new mongoose.Schema({
-    shopId: { type: mongoose.Schema.Types.ObjectId, ref: 'Shop', required: true, index: true },
-    psid: { type: String, required: true },
+    shopId: {
+        type:     mongoose.Schema.Types.ObjectId,
+        ref:      'Shop',
+        required: true,
+        index:    true,
+    },
+    psid: {
+        type:     String,
+        required: true,
+    },
     messages: [{
         role:  { type: String, enum: ['user', 'model'], required: true },
         parts: [{ text: { type: String, default: '' } }],

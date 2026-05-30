@@ -7,6 +7,7 @@ export const AuthProvider = ({ children }) => {
     const [user,    setUser]    = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // Hydrate from localStorage on mount
     useEffect(() => {
         try {
             const storedToken = localStorage.getItem('token');
@@ -15,6 +16,7 @@ export const AuthProvider = ({ children }) => {
                 setUser(JSON.parse(storedUser));
             }
         } catch {
+            // Corrupted storage — clear and start fresh
             localStorage.removeItem('token');
             localStorage.removeItem('user');
         } finally {
@@ -34,6 +36,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         setUser(null);
+        // Hard redirect clears all in-memory React state
         window.location.replace('/auth');
     }, []);
 
