@@ -861,14 +861,21 @@ const SettingsView = ({ showMessage }) => {
     }
   };
 
-  // Facebook OAuth via FB JS SDK
+  // Facebook OAuth via FB JS SDK (Updated Scope for NPE Pages)
   const handleFacebookLogin = () => {
     if (!window.FB) return showMessage('Facebook SDK not loaded. Refresh and retry.', 'error');
     setConnectingFb(true);
+    
     window.FB.login((response) => {
       if (response.authResponse) {
         const accessToken = response.authResponse.accessToken;
+        
+        // ফেসবুকের API কল করে পেজ লিস্ট আনা হচ্ছে
         window.FB.api('/me/accounts', async (res) => {
+          
+          // 🐛 DEBUG: ব্রাউজার কনসোলে ডাটা প্রিন্ট করে দেখছি ফেসবুক কী পাঠাচ্ছে
+          console.log("FACEBOOK API RESPONSE:", res);
+
           if (res && !res.error && res.data?.length > 0) {
             const pageId = res.data[0].id;
             try {
@@ -879,6 +886,7 @@ const SettingsView = ({ showMessage }) => {
               showMessage(err.response?.data?.error || 'Failed to link Facebook page', 'error');
             }
           } else {
+            console.error("FB Graph API Error:", res.error || "Empty Page List");
             showMessage('No Facebook Page found on this account.', 'error');
           }
           setConnectingFb(false);
@@ -887,7 +895,10 @@ const SettingsView = ({ showMessage }) => {
         setConnectingFb(false);
         showMessage('Facebook login cancelled.', 'error');
       }
-    }, { scope: 'pages_messaging,pages_show_list,pages_manage_metadata' });
+    }, { 
+      // ✅ FIX: 'pages_read_engagement' স্কোপটি অ্যাড করা হয়েছে
+      scope: 'pages_messaging,pages_show_list,pages_manage_metadata,pages_read_engagement' 
+    });
   };
 
   const handleManualFbConnect = async (e) => {
