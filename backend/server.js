@@ -332,9 +332,6 @@ function canProcessShopRPM(shopId, planRpm) {
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-// ✅ FIX: Greedy match so nested {} in address fields don't truncate the JSON.
-//    Matches from [SYNC: to the very last } before the closing ]
-const SYNC_RE = /\[SYNC:\s*(\{[\s\S]*\})\s*\]/;
 
 async function getAurelianResponse(shop, psid, text, imgUrl = null, isFromQueue = false) {
     const limits = PLAN_LIMITS[shop.plan] ?? PLAN_LIMITS.Starter;
@@ -417,68 +414,76 @@ function repairJson(raw) {
     return s;
 }
 
-// 🔥 ADVANCED Dynamic Multi-Item Order Sync
+// 🔥 ADVANCED Dynamic Multi-Item Order Sync (HUMAN-LIKE LOGIC)
 async function processOrderSync(shop, aiResponse) {
-    const match = SYNC_RE.exec(aiResponse);
+    // Flexible regex to capture the items array even if [SYNC: wrapper is slightly mangled
+    const SYNC_RE_FLEX = /(?:\[SYNC:\s*)?(\{[\s\S]*?"items"[\s\S]*?\})(?:\s*\])?/;
+    const match = SYNC_RE_FLEX.exec(aiResponse);
     if (!match) return;
 
     let rawJson = match[1];
 
     try {
-        // ✅ Try direct parse first; fall back to repair
         let data;
         try {
             data = JSON.parse(rawJson);
         } catch (_) {
-            console.log('⚠️  Direct JSON parse failed, attempting repair...');
+            console.log('⚠️ Direct JSON parse failed, attempting repair...');
             const repaired = repairJson(rawJson);
             try {
                 data = JSON.parse(repaired);
             } catch (repairErr) {
                 console.error('❌ JSON repair also failed. Raw block:', rawJson);
-                console.error('   Repair error:', repairErr.message);
                 return;
             }
         }
 
         const loc  = (data.l || '').toLowerCase();
         const isInsideDhaka = loc.includes('inside') || (loc.includes('dhaka') && !loc.includes('outside'));
-
         const deliveryCharge = isInsideDhaka ? 60 : 120;
         let finalTotal = deliveryCharge;
         const processedItems = [];
 
-        // ✅ Exact code-only lookup — safe, fast, no ReDoS risk
         if (Array.isArray(data.items)) {
             for (const item of data.items) {
-                const providedCode = (item.c || '').trim().toUpperCase();
-                if (!providedCode) continue;
+                const aiGivenCode = (item.c || '').trim();
+                const aiGivenColor = (item.color || '').trim();
+                const qty = Math.max(1, parseInt(item.qty) || 1);
 
-                const product = await Product.findOne({ shopId: shop._id, code: providedCode });
-                if (!product) {
-                    console.log(`⚠️  No product found for code "${providedCode}"`);
-                    continue;
+                let product = null;
+
+                // 🧠 হিউম্যান লজিক: যদি কোড থাকে, তবে কোড দিয়ে ডাটাবেসে খুঁজবে
+                if (aiGivenCode && aiGivenCode !== 'UNKNOWN') {
+                    product = await Product.findOne({ shopId: shop._id, code: aiGivenCode.toUpperCase() });
+                } 
+                
+                // 🧠 হিউম্যান লজিক: কোড না পেলে বা আননোন হলে, কালার বা নাম দিয়ে মিলিয়ে দেখবে
+                if (!product && aiGivenColor) {
+                    product = await Product.findOne({ 
+                        shopId: shop._id, 
+                        name: { $regex: aiGivenColor, $options: 'i' } 
+                    });
                 }
 
-                const qty       = Math.max(1, parseInt(item.qty) || 1);
-                const unitPrice = product.price || 0;
+                // 🚀 প্রো-লেভেল ফিক্স: ডাটাবেসে প্রোডাক্ট না পেলেও অর্ডার ড্রপ করবে না!
+                const unitPrice = product ? (product.price || 799) : 799; 
                 const subTotal  = unitPrice * qty;
                 finalTotal     += subTotal;
 
                 processedItems.push({
-                    productCode: product.code,
-                    productName: product.name,
-                    size:        item.s     || 'FREE SIZE',
-                    color:       item.color || '',
+                    productCode: product ? product.code : 'CUSTOM',
+                    productName: product ? product.name : (aiGivenColor ? `${aiGivenColor} Panjabi` : 'Aurelian Premium Panjabi'),
+                    size:        item.s || 'FREE SIZE',
+                    color:       aiGivenColor || '',
                     quantity:    qty,
-                    unitPrice,
-                    subTotal,
+                    unitPrice:   unitPrice,
+                    subTotal:    subTotal
                 });
             }
         }
 
         if (processedItems.length === 0) {
-            console.log('⚠️ Order Sync failed: No valid products matched in DB for this shop.');
+            console.log('⚠️ Order Sync failed: No items processed.');
             return;
         }
 
@@ -492,9 +497,9 @@ async function processOrderSync(shop, aiResponse) {
             deliveryCharge,
             totalPrice:       finalTotal,
         });
-        console.log(`✅ Multi-Item Order Synced! Items: ${processedItems.length}, Total: ৳${finalTotal}`);
-    } catch (err) {
-        console.error('Order sync error:', err.message);
+        console.log(`✅ Order Masterfully Synced! Total: ৳${finalTotal}`);
+    } catch (err) { 
+        console.error('Order sync error:', err.message); 
     }
 }
 
@@ -528,7 +533,7 @@ setInterval(async () => {
                 continue;
             }
 
-            const cleanMessage = aiResponse.replace(SYNC_RE, '').trim();
+            const cleanMessage = aiResponse.replace(/(?:\[SYNC:\s*)?(\{[\s\S]*?"items"[\s\S]*?\})(?:\s*\])?/g, '').trim();
 
             if (item.platform === 'whatsapp') {
                 const decryptedToken = decryptToken(freshShop.whatsappAccessToken);
@@ -597,7 +602,7 @@ app.post('/webhook', async (req, res) => {
             return res.status(200).send('EVENT_RECEIVED');
         }
 
-        const cleanMessage = aiResponse.replace(SYNC_RE, '').trim();
+        const cleanMessage = aiResponse.replace(/(?:\[SYNC:\s*)?(\{[\s\S]*?"items"[\s\S]*?\})(?:\s*\])?/g, '').trim();
         const decryptedToken = decryptToken(shop.metaAccessToken);
 
         await axios.post(
@@ -658,7 +663,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
             return res.status(200).send('EVENT_RECEIVED');
         }
 
-        const cleanMessage = aiResponse.replace(SYNC_RE, '').trim();
+        const cleanMessage = aiResponse.replace(/(?:\[SYNC:\s*)?(\{[\s\S]*?"items"[\s\S]*?\})(?:\s*\])?/g, '').trim();
         const decryptedToken = decryptToken(shop.whatsappAccessToken);
 
         await axios.post(
@@ -696,5 +701,7 @@ app.use((err, req, res, _next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Thirdwave SaaS API running on port ${PORT}`));
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => console.log(`🚀 Thirdwave SaaS API running on port ${PORT}`));
+}
 module.exports = app;
