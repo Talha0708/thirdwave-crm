@@ -79,9 +79,8 @@ function decryptToken(hash) {
 // ══════════════════════════════════════════════════════════════
 //  1. CORS & Body Parsing (✅ CORS FULLY OPENED FOR NO ERRORS)
 // ══════════════════════════════════════════════════════════════
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',');
 app.use(cors({
-    origin: (origin, cb) => (!origin || ALLOWED_ORIGINS.includes(origin)) ? cb(null, true) : cb(new Error('Not allowed by CORS')),
+    origin: (origin, cb) => cb(null, true), // Vercel-এর জন্য ডাইনামিক অরিজিন অ্যালাউ করা হলো (No CORS Errors)
     methods:     ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
 }));
