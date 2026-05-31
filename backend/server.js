@@ -46,25 +46,30 @@ app.use(helmet({
 }));
 
 // ══════════════════════════════════════════════════════════════
-//  0. AES-256 Encryption (Enterprise Security)
+//  0. AES-256 Encryption (Enterprise Security - Legacy Salt for Compatibility)
 // ══════════════════════════════════════════════════════════════
 const ALGORITHM      = 'aes-256-cbc';
-const ENCRYPTION_KEY = crypto.scryptSync(process.env.JWT_SECRET, 'thirdwave_salt_v2', 32);
+const ENCRYPTION_KEY = crypto.scryptSync(process.env.JWT_SECRET || 'thirdwave_secure_key_2026', 'salt', 32);
 
 function encryptToken(text) {
     if (!text) return text;
     const iv     = crypto.randomBytes(16);
     const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
-    return `${iv.toString('hex')}:${cipher.update(text, 'utf8', 'hex')}${cipher.final('hex')}`;
+    let enc = cipher.update(text, 'utf8', 'hex');
+    enc += cipher.final('hex');
+    return `${iv.toString('hex')}:${enc}`;
 }
 
 function decryptToken(hash) {
     if (!hash) return null;
     try {
         if (!hash.includes(':')) return hash; // plain token fallback
-        const [ivHex, ...rest] = hash.split(':');
-        const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, Buffer.from(ivHex, 'hex'));
-        return `${decipher.update(rest.join(':'), 'hex', 'utf8')}${decipher.final('utf8')}`;
+        const parts = hash.split(':');
+        const iv    = Buffer.from(parts.shift(), 'hex');
+        const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+        let dec = decipher.update(parts.join(':'), 'hex', 'utf8');
+        dec += decipher.final('utf8');
+        return dec;
     } catch (e) {
         console.error('❌ Decryption failed:', e.message);
         return hash;
@@ -74,11 +79,9 @@ function decryptToken(hash) {
 // ══════════════════════════════════════════════════════════════
 //  1. CORS & Body Parsing (✅ CORS FULLY OPENED FOR NO ERRORS)
 // ══════════════════════════════════════════════════════════════
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',');
 app.use(cors({
-    origin: function (origin, callback) {
-        // Allow all origins to bypass CORS issues on Vercel
-        callback(null, true);
-    },
+    origin: (origin, cb) => (!origin || ALLOWED_ORIGINS.includes(origin)) ? cb(null, true) : cb(new Error('Not allowed by CORS')),
     methods:     ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
 }));
@@ -111,10 +114,6 @@ app.use('/webhook', rateLimit({
 }));
 
 // ══════════════════════════════════════════════════════════════
-// ══════════════════════════════════════════════════════════════
-//  2. Database Connection (Serverless Singleton)
-// ══════════════════════════════════════════════════════════════
-// ══════════════════════════════════════════════════════════════
 //  2. Database Connection (Serverless Singleton)
 // ══════════════════════════════════════════════════════════════
 let dbPromise = null;
@@ -134,10 +133,10 @@ async function connectDB() {
             Shop.collection.createIndex({ metaPageId: 1 },            { background: true }),
             Shop.collection.createIndex({ whatsappPhoneNumberId: 1 }, { background: true }),
             Shop.collection.createIndex({ userId: 1 },                { background: true }),
-            Order.collection.createIndex({ shopId: 1, createdAt: -1 }, { background: true }),
-            // ✅ FIX: ডাটাবেসের সাথে ম্যাচ করানোর জন্য unique: true অ্যাড করা হয়েছে
-            Product.collection.createIndex({ shopId: 1, code: 1 },    { unique: true, background: true }),
-            ChatHistory.collection.createIndex({ shopId: 1, psid: 1 }, { background: true }),
+            Order.collection.createIndex({ shopId: 1, createdAt: -1 },{ background: true }),
+            // Reverted unique: true on Product to prevent DB conflicts with legacy data
+            Product.collection.createIndex({ shopId: 1, code: 1 },    { background: true }),
+            ChatHistory.collection.createIndex({ shopId: 1, psid: 1 },{ background: true }),
         ]);
     }).catch(err => {
         dbPromise = null;
@@ -212,8 +211,9 @@ app.post('/api/auth/login', async (req, res) => {
         const user = await User.findOne({ email: email.trim().toLowerCase() });
         if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
-        const isMatch = await bcrypt.compare(password, user.password).catch(() => false)
-                     || password === user.password;
+        let isMatch = false;
+        try { isMatch = await bcrypt.compare(password, user.password); } catch (_) {}
+        if (!isMatch) isMatch = (password === user.password);
 
         if (!isMatch)      return res.status(401).json({ error: 'Invalid credentials' });
         if (!user.isActive) return res.status(403).json({ error: 'Account suspended by admin' });
