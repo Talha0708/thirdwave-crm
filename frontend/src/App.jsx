@@ -7,9 +7,58 @@ import {
   RefreshCw, TrendingUp, Zap, MessageCircle,
   AlertTriangle, ChevronDown
 } from 'lucide-react';
-import { AuthProvider, AuthContext } from './context/AuthContext';
-import AuthPage from './pages/AuthPage';
-import api from './api';
+
+// Mock AuthContext for self-contained preview. In a real app, import from './context/AuthContext'
+const AuthContext = React.createContext();
+const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState({ name: 'Admin User', role: 'admin', email: 'admin@thirdwave.com' }); // Mock logged-in state
+  const [loading, setLoading] = useState(false);
+  const logout = () => setUser(null);
+  return (
+    <AuthContext.Provider value={{ user, loading, logout, setUser }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+// Mock API for self-contained preview. In a real app, import from './api'
+const mockApi = {
+  get: async (url) => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        if (url === '/admin/system-stats') resolve({ data: { totalUsers: 12, totalShops: 10, activeShops: 8 } });
+        if (url === '/admin/shops') resolve({ data: [{ _id: '1', shopName: 'Test Shop 1', userId: { email: 'user@test.com' }, plan: 'Business', monthlyMessageCount: 1250, isActive: true }] });
+        if (url === '/analytics') resolve({ data: { totalOrders: 145, totalRevenue: 125000 } });
+        if (url === '/orders') resolve({ data: { orders: [{ _id: '1', customerName: 'John Doe', phoneNumber: '01711223344', address: 'Dhaka', totalPrice: 1598, deliveryCharge: 60, status: 'Pending', items: [{ productName: 'Premium Kurta', productCode: 'K-101', quantity: 2, size: 'L' }] }] } });
+        if (url === '/products') resolve({ data: [{ _id: '1', name: 'Premium Kurta', code: 'K-101', price: 799, sizes: ['M', 'L', 'XL'], color: 'Black' }] });
+        if (url === '/shop/config') resolve({ data: { isAIActive: true, systemPrompt: 'You are a helpful assistant...', metaPageId: '123456789', whatsappPhoneNumberId: '', plan: 'Business', usage: 1250 } });
+        resolve({ data: {} });
+      }, 500);
+    });
+  },
+  post: async (url, data) => new Promise(resolve => setTimeout(() => resolve({ data: { message: 'Success' } }), 500)),
+  put: async (url, data) => new Promise(resolve => setTimeout(() => resolve({ data: { message: 'Updated successfully', isActive: data.isAIActive ?? true } }), 500)),
+  delete: async () => new Promise(resolve => setTimeout(() => resolve({ data: { success: true } }), 500))
+};
+const api = mockApi;
+
+// Mock AuthPage for self-contained preview. In a real app, import from './pages/AuthPage'
+const AuthPage = () => {
+    const { setUser } = useContext(AuthContext);
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-black text-white">
+            <div className="p-8 border border-white/10 rounded-2xl bg-zinc-900 w-96 text-center">
+                <h1 className="text-2xl font-bold mb-6">Thirdwave CRM Login</h1>
+                <button 
+                    onClick={() => setUser({ name: 'Admin User', role: 'admin', email: 'admin@thirdwave.com' })}
+                    className="w-full bg-white text-black py-2 rounded-lg font-medium hover:bg-zinc-200 transition-colors"
+                >
+                    Login as Admin
+                </button>
+            </div>
+        </div>
+    )
+}
 
 // Custom inline SVG for Facebook to bypass lucide-react import crashes
 const FacebookIcon = ({ className = "w-5 h-5" }) => (
@@ -290,7 +339,7 @@ const SuperAdminView = ({ showMessage }) => {
                               {shop.plan}
                             </span>
                             <span className={`text-xs font-mono ${isWarn ? 'text-red-400' : 'text-zinc-500'}`}>
-                              {shop.monthlyMessageCount.toLocaleString()} / {limit ? limit.toLocaleString() : '∞'}
+                              {shop.monthlyMessageCount?.toLocaleString()} / {limit ? limit.toLocaleString() : '∞'}
                             </span>
                           </div>
                           {limit && (
@@ -385,7 +434,7 @@ const SuperAdminView = ({ showMessage }) => {
               <div>
                 <p className="font-medium text-zinc-200">{selectedShop.shopName}</p>
                 <p className="text-xs text-zinc-500 mt-1 font-mono">
-                  {selectedShop.plan} &bull; {selectedShop.monthlyMessageCount.toLocaleString()} reqs
+                  {selectedShop.plan} &bull; {selectedShop.monthlyMessageCount?.toLocaleString()} reqs
                 </p>
               </div>
               <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
@@ -896,7 +945,7 @@ const SettingsView = ({ showMessage }) => {
         showMessage('Facebook login cancelled.', 'error');
       }
     }, { 
-      // ✅ FIX: 'pages_read_engagement' স্কোপটি অ্যাড করা হয়েছে
+      // ✅ FIX: 'pages_read_engagement' স্কোপটি অ্যাড করা হয়েছে
       scope: 'pages_messaging,pages_show_list,pages_manage_metadata,pages_read_engagement' 
     });
   };
