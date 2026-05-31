@@ -2,7 +2,7 @@
  * ============================================================
  * THIRDWAVE SAAS — Master Backend Server (Vercel Serverless Optimized)
  * Architecture: Meta Webhook + WhatsApp Cloud API + Gemini AI + Multi-Item Cart
- * Version: 2.0.0 — Enterprise Grade
+ * Version: 2.0.0 — Enterprise Grade (WITH DEBUG LOGS)
  * ============================================================
  */
 'use strict';
@@ -10,8 +10,8 @@
 require('dotenv').config();
 
 // ── DNS Fix: Forces Google DNS to resolve MongoDB Atlas SRV records ──
-//const dns = require('dns');
-//dns.setServers(['8.8.8.8', '8.8.4.4']);
+// const dns = require('dns');
+// dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 const express   = require('express');
 const mongoose  = require('mongoose');
@@ -649,7 +649,7 @@ function repairJson(raw) {
         .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":') // unquoted keys
         .replace(/:\s*'([^']*)'/g, ': "$1"')   // single → double quotes
         .replace(/,\s*([}\]])/g, '$1')          // trailing commas
-        .replace(/[\x00-\x1F\x7F]/g, ' ');     // control chars
+        .replace(/[\x00-\x1F\x7F]/g, ' ');      // control chars
 
     return s;
 }
@@ -830,28 +830,51 @@ app.get('/webhook', (req, res) => {
 app.post('/webhook', async (req, res) => {
     // Always respond 200 first so Meta doesn't retry
     res.status(200).send('EVENT_RECEIVED');
+    
+    console.log('\n🔔 FB WEBHOOK HIT! Data receiving...');
 
     try {
         await connectDB();
         const body = req.body;
-        if (body.object !== 'page') return;
+        
+        if (body.object !== 'page') {
+            console.log('❌ Not a page event');
+            return;
+        }
 
-        const pageId  = body.entry?.[0]?.id;
-        const shop    = await Shop.findOne({ metaPageId: pageId }).lean();
-        if (!shop?.isAIActive) return;
+        const pageId = body.entry?.[0]?.id;
+        console.log(`🔍 Looking for Shop with Page ID: ${pageId}`);
+
+        const shop = await Shop.findOne({ metaPageId: pageId }).lean();
+        
+        if (!shop) {
+            console.log('❌ ERROR: Shop not found in DB for this Page ID!');
+            return;
+        }
+        
+        if (!shop.isAIActive) {
+            console.log('❌ ERROR: AI is turned OFF for this shop in DB!');
+            return;
+        }
 
         const messaging = body.entry?.[0]?.messaging?.[0];
-        if (!messaging) return;
+        if (!messaging) {
+            console.log('❌ ERROR: No messaging object found in payload.');
+            return;
+        }
 
         const psid   = messaging.sender?.id;
         const text   = messaging.message?.text || '';
         const imgUrl = messaging.message?.attachments?.[0]?.payload?.url || null;
+
+        console.log(`💬 User (${psid}) sent: "${text}"`);
 
         if (!psid || (!text && !imgUrl)) return;
 
         const aiResponse = await getAurelianResponse(shop, psid, text, imgUrl);
 
         if (aiResponse === 'QUEUED') {
+            console.log('⏳ Message Queued due to Rate Limit...');
             messageQueue.push({ shopId: shop._id, psid, text, imgUrl, platform: 'facebook' });
             return;
         }
@@ -859,7 +882,8 @@ app.post('/webhook', async (req, res) => {
         const cleanMessage = aiResponse.replace(SYNC_RE, '').trim();
         await sendFacebookMessage(shop, psid, cleanMessage);
         await processOrderSync(shop, aiResponse);
-        console.log('✅ FB reply sent');
+        console.log('✅ FB reply sent successfully!');
+        
     } catch (err) {
         const fbError = err.response?.data ?? err.message;
         console.error('❌ FB Webhook error:', JSON.stringify(fbError, null, 2));
