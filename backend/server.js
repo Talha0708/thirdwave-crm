@@ -2,7 +2,7 @@
  * ============================================================
  * THIRDWAVE SAAS — Master Backend Server (Vercel Serverless Optimized)
  * Architecture: Meta Webhook + WhatsApp Cloud API + Gemini AI + Multi-Item Cart
- * Version: 3.0.0 — Enterprise Grade (CORS Fixed & Vercel Optimized)
+ * Version: 3.1.0 — Enterprise Grade (Dual-Key Decryption & CORS Fixed)
  * ============================================================
  */
 'use strict';
@@ -46,15 +46,19 @@ app.use(helmet({
 }));
 
 // ══════════════════════════════════════════════════════════════
-//  0. AES-256 Encryption (Enterprise Security - Legacy Salt for Compatibility)
+//  0. AES-256 Encryption (Enterprise Security - Dual-Key Fallback)
 // ══════════════════════════════════════════════════════════════
 const ALGORITHM      = 'aes-256-cbc';
-const ENCRYPTION_KEY = crypto.scryptSync(process.env.JWT_SECRET || 'thirdwave_secure_key_2026', 'salt', 32);
+// Original Key (Legacy tokens)
+const ENCRYPTION_KEY_V1 = crypto.scryptSync(process.env.JWT_SECRET || 'thirdwave_secure_key_2026', 'salt', 32);
+// Temporary Key (Tokens saved during V2 testing)
+const ENCRYPTION_KEY_V2 = crypto.scryptSync(process.env.JWT_SECRET || 'thirdwave_secure_key_2026', 'thirdwave_salt_v2', 32);
 
 function encryptToken(text) {
     if (!text) return text;
+    // নতুন টোকেন সেভ করার সময় সবসময় অরিজিনাল/পুরোনো কি ব্যবহার করবে
     const iv     = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+    const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY_V1, iv);
     let enc = cipher.update(text, 'utf8', 'hex');
     enc += cipher.final('hex');
     return `${iv.toString('hex')}:${enc}`;
@@ -62,17 +66,31 @@ function encryptToken(text) {
 
 function decryptToken(hash) {
     if (!hash) return null;
+    if (!hash.includes(':')) return hash; // plain token fallback
+    
+    const parts = hash.split(':');
+    const ivHex = parts.shift();
+    const encryptedText = parts.join(':');
+
+    // প্রথমে অরিজিনাল কি (V1) দিয়ে ডিক্রিপ্ট করার চেষ্টা
     try {
-        if (!hash.includes(':')) return hash; // plain token fallback
-        const parts = hash.split(':');
-        const iv    = Buffer.from(parts.shift(), 'hex');
-        const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
-        let dec = decipher.update(parts.join(':'), 'hex', 'utf8');
+        const iv    = Buffer.from(ivHex, 'hex');
+        const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY_V1, iv);
+        let dec = decipher.update(encryptedText, 'hex', 'utf8');
         dec += decipher.final('utf8');
         return dec;
-    } catch (e) {
-        console.error('❌ Decryption failed:', e.message);
-        return hash;
+    } catch (e1) {
+        // V1 ফেইল করলে, অটোমেটিক্যালি নতুন কি (V2) দিয়ে ডিক্রিপ্ট করার চেষ্টা (Dual Fallback)
+        try {
+            const iv    = Buffer.from(ivHex, 'hex');
+            const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY_V2, iv);
+            let dec = decipher.update(encryptedText, 'hex', 'utf8');
+            dec += decipher.final('utf8');
+            return dec;
+        } catch (e2) {
+            console.error('❌ Decryption failed for both V1 and V2 keys:', e2.message);
+            return hash; // If completely invalid, return raw hash
+        }
     }
 }
 
@@ -80,7 +98,7 @@ function decryptToken(hash) {
 //  1. CORS & Body Parsing (✅ CORS FULLY OPENED FOR NO ERRORS)
 // ══════════════════════════════════════════════════════════════
 app.use(cors({
-    origin: (origin, cb) => cb(null, true), // Vercel-এর জন্য ডাইনামিক অরিজিন অ্যালাউ করা হলো (No CORS Errors)
+    origin: (origin, cb) => cb(null, true), // Vercel-এর জন্য ডাইনামিক অরিজিন অ্যালাউ করা হলো
     methods:     ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
 }));
@@ -951,7 +969,7 @@ app.get('/health', async (_req, res) => {
         db:      ['disconnected', 'connected', 'connecting', 'disconnecting'][dbState] || 'unknown',
         queue:   messageQueue.length,
         uptime:  Math.floor(process.uptime()),
-        version: '3.0.0',
+        version: '3.1.0',
     });
 });
 
@@ -970,7 +988,7 @@ app.use((_req, res) => res.status(404).json({ error: 'Route not found' }));
 // ══════════════════════════════════════════════════════════════
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
-    console.log(`🚀 Thirdwave SaaS API v3.0.0 running on port ${PORT}`);
+    console.log(`🚀 Thirdwave SaaS API v3.1.0 running on port ${PORT}`);
     try { await connectDB(); } catch (_) {}
 });
 
