@@ -114,6 +114,9 @@ app.use('/webhook', rateLimit({
 // ══════════════════════════════════════════════════════════════
 //  2. Database Connection (Serverless Singleton)
 // ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+//  2. Database Connection (Serverless Singleton)
+// ══════════════════════════════════════════════════════════════
 let dbPromise = null;
 
 async function connectDB() {
@@ -128,12 +131,12 @@ async function connectDB() {
     }).then(async () => {
         console.log('✅ MongoDB Connected');
         await Promise.all([
-            // ✅ FIX: Removed "sparse: true" to prevent Index Conflict with existing DB
             Shop.collection.createIndex({ metaPageId: 1 },            { background: true }),
             Shop.collection.createIndex({ whatsappPhoneNumberId: 1 }, { background: true }),
             Shop.collection.createIndex({ userId: 1 },                { background: true }),
             Order.collection.createIndex({ shopId: 1, createdAt: -1 }, { background: true }),
-            Product.collection.createIndex({ shopId: 1, code: 1 },    { background: true }),
+            // ✅ FIX: ডাটাবেসের সাথে ম্যাচ করানোর জন্য unique: true অ্যাড করা হয়েছে
+            Product.collection.createIndex({ shopId: 1, code: 1 },    { unique: true, background: true }),
             ChatHistory.collection.createIndex({ shopId: 1, psid: 1 }, { background: true }),
         ]);
     }).catch(err => {
