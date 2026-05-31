@@ -400,6 +400,30 @@ app.put('/api/shop/manual-facebook', authMiddleware, async (req, res) => {
     }
 });
 
+app.post('/api/shop/oauth/facebook', authMiddleware, async (req, res) => {
+    try {
+        // Frontend থেকে আসা ডাটা (accessToken/pageId অথবা metaAccessToken/metaPageId) সাপোর্ট করার জন্য
+        const accessToken = req.body.accessToken || req.body.metaAccessToken;
+        const pageId = req.body.pageId || req.body.metaPageId;
+
+        if (!pageId || !accessToken) {
+            return res.status(400).json({ error: 'Page ID and Access Token are required' });
+        }
+
+        const encryptedToken = encryptToken(accessToken.trim());
+        await Shop.findByIdAndUpdate(req.shopId, {
+            metaPageId:      pageId.toString().trim(),
+            metaAccessToken: encryptedToken,
+            isAIActive:      true,
+        });
+        
+        res.json({ success: true, message: 'Facebook OAuth integration successful!' });
+    } catch (err) {
+        console.error('OAuth FB error:', err.message);
+        res.status(500).json({ error: 'Failed to save Facebook OAuth token' });
+    }
+});
+
 app.put('/api/shop/manual-whatsapp', authMiddleware, async (req, res) => {
     try {
         const { whatsappPhoneNumberId, whatsappAccessToken } = req.body;
@@ -756,8 +780,17 @@ async function sendFacebookMessage(shop, recipientId, text) {
             { params: { access_token: token } }
         );
     } catch (err) {
-        const fbError = err.response?.data ?? err.message;
+        const fbError = err.response?.data?.error || err.response?.data || err.message;
         console.error('❌ FB Send Error:', JSON.stringify(fbError, null, 2));
+        
+        // Pro-Level Protection: Auto-disable AI if token is invalid/expired (Code 190)
+        if (fbError.code === 190) {
+            console.error(`🚨 CRITICAL: Facebook Token Invalidated for Shop ID: ${shop._id}. Auto-disabling AI to prevent infinite error loops.`);
+            try {
+                await mongoose.model('Shop').findByIdAndUpdate(shop._id, { isAIActive: false });
+            } catch (dbErr) {}
+        }
+        
         throw err;
     }
 }
