@@ -10,8 +10,8 @@
 require('dotenv').config();
 
 // ── DNS Fix: Forces Google DNS to resolve MongoDB Atlas SRV records ──
-const dns = require('dns');
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+//const dns = require('dns');
+//dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 const express   = require('express');
 const mongoose  = require('mongoose');
