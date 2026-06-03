@@ -14,7 +14,7 @@ const Login = () => {
     const [loading, setLoading] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
 
-    const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm-cu8c.vercel.app/api';
+   const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
 
     useEffect(() => {
         const handleScroll = () => setIsScrolled(window.scrollY > 20);
