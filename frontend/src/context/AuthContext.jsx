@@ -1,56 +1,47 @@
-import React, { createContext, useState, useEffect, useCallback } from 'react';
-import api from '../api';
+import React, { createContext, useContext, useState } from 'react';
 
-export const AuthContext = createContext();
+// Context তৈরি করা হলো
+const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+  // লোকাল স্টোরেজ থেকে সিকিউরলি ডেটা নেওয়ার ফাংশন
+  const [user, setUser] = useState(() => {
+    try {
+      const data = localStorage.getItem('user');
+      return data && data !== 'undefined' && data !== 'null' ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
+  });
+  
+  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
 
-    // Derived state for cleaner UI logic
-    const isAuthenticated = !!user;
+  const login = (userData, authToken) => {
+    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('token', authToken);
+    setUser(userData);
+    setToken(authToken);
+  };
 
-    // Hydrate from localStorage on mount
-    useEffect(() => {
-        try {
-            const storedToken = localStorage.getItem('token');
-            const storedUser  = localStorage.getItem('user');
-            if (storedToken && storedUser) {
-                setUser(JSON.parse(storedUser));
-            }
-        } catch (err) {
-            console.error('Session restoration failed:', err);
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+  const logout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    setUser(null);
+    setToken(null);
+  };
 
-    const login = useCallback(async (email, password) => {
-        try {
-            const res = await api.post('/auth/login', { email, password });
-            localStorage.setItem('token', res.data.token);
-            localStorage.setItem('user',  JSON.stringify(res.data.user));
-            setUser(res.data.user);
-            return res.data;
-        } catch (err) {
-            // Error টি কম্পোনেন্টে পাঠানোর জন্য re-throw করছি
-            throw err;
-        }
-    }, []);
+  return (
+    <AuthContext.Provider value={{ user, token, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
 
-    const logout = useCallback(() => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setUser(null);
-        // Hard reset
-        window.location.replace('/auth');
-    }, []);
-
-    return (
-        <AuthContext.Provider value={{ user, isAuthenticated, login, logout, loading }}>
-            {children}
-        </AuthContext.Provider>
-    );
+// কাস্টম হুক (Zustand এর বিকল্প)
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };
