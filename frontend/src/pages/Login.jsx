@@ -14,7 +14,7 @@ const Login = () => {
     const [loading, setLoading] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
 
-   const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
+    const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
 
     useEffect(() => {
         const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -22,6 +22,7 @@ const Login = () => {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
+    // যদি আগে থেকেই লগইন করা থাকে, তাহলে ড্যাশবোর্ডে পাঠিয়ে দেবে
     useEffect(() => {
         if (token && user) {
             if (user.role === 'admin') {
@@ -32,40 +33,29 @@ const Login = () => {
         }
     }, [user, token, navigate]);
 
+    // ─── REAL LOGIN LOGIC ───
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setLoading(true);
 
         try {
-            // ✅ ফেক লোডিং ইফেক্ট (১.৫ সেকেন্ড) যাতে রিয়েলিস্টিক লাগে
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            // ─── MOCK LOGIN LOGIC (Backend ছাড়াই টেস্টিংয়ের জন্য) ───
+            // রিয়েল ব্যাকএন্ড API-তে রিকোয়েস্ট পাঠানো
+            const response = await axios.post(`${API_URL}/auth/login`, { email, password });
             
-            // যদি ইমেইলে 'admin' লেখা থাকে, তাহলে অ্যাডমিন ড্যাশবোর্ডে যাবে
-            if (email.includes('admin')) {
-                const adminData = {
-                    name: 'Talha Belal',
-                    email: email,
-                    role: 'admin'
-                };
-                login(adminData, 'fake-admin-token-12345');
+            // AuthContext-এ ইউজার ডেটা এবং টোকেন সেভ করা
+            login(response.data, response.data.token);
+            
+            // ইউজারের রোল অনুযায়ী ড্যাশবোর্ডে পাঠানো
+            if (response.data.role === 'admin') {
                 navigate('/admin/dashboard', { replace: true });
-            } 
-            // অন্য যেকোনো ইমেইল দিলে ক্লায়েন্ট ড্যাশবোর্ডে যাবে
-            else {
-                const clientData = {
-                    name: 'Test Client',
-                    email: email,
-                    role: 'user'
-                };
-                login(clientData, 'fake-client-token-67890');
+            } else {
                 navigate('/client/dashboard', { replace: true });
             }
 
         } catch (err) {
-            setError('Authentication failed. Please try again.');
+            // ব্যাকএন্ড থেকে আসা আসল এরর মেসেজ ক্যাপচার করা
+            setError(err.response?.data?.error || 'Authentication failed. Please check your credentials.');
         } finally {
             setLoading(false);
         }
