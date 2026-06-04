@@ -12,7 +12,7 @@ const ProductCatalog = () => {
   
   // ─── Modal States ───
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState(null); // 💥 NEW: এডিট করার জন্য আইডি ট্র্যাক
+  const [editingId, setEditingId] = useState(null);
   
   const [formData, setFormData] = useState({ 
       name: '', category: '', price: '', stock: '', sizes: [], status: 'Active' 
@@ -58,7 +58,7 @@ const ProductCatalog = () => {
       setFormData({ name: '', category: '', price: '', stock: '', sizes: [], status: 'Active' });
   };
 
-  // ─── Open Edit Modal (💥 NEW) ───
+  // ─── Open Edit Modal ───
   const openEditModal = (product) => {
       setFormData({
           name: product.name,
@@ -72,7 +72,7 @@ const ProductCatalog = () => {
       setIsModalOpen(true);
   };
 
-  // ─── Add or Update Product (💥 UPDATED) ───
+  // ─── Add or Update Product (💥 With Error Alert) ───
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitLoading(true);
@@ -93,9 +93,12 @@ const ProductCatalog = () => {
       }
       
       closeModal();
-      await fetchProducts(); // リফ্রেশ ডেটাবেস
+      await fetchProducts(); 
     } catch (err) {
       console.error("Failed to save product", err);
+      // 💥 চোর ধরার অ্যালার্ট!
+      const errorMessage = err.response?.data?.error || err.message || "Unknown Error";
+      alert(`⚠️ Save Failed!\nReason: ${errorMessage}\n\nCheck if your backend is running or Vercel crashed.`);
     } finally {
       setSubmitLoading(false);
     }
@@ -141,7 +144,6 @@ const ProductCatalog = () => {
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="text-sm text-zinc-400 block mb-1.5">Category</label>
-                            {/* 💥 Custom Input with Datalist */}
                             <input 
                                 required 
                                 type="text" 
@@ -290,7 +292,6 @@ const ProductCatalog = () => {
                     <div className="px-5 py-3 border-t border-zinc-800/50 bg-[#050505] flex justify-between items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <span className="text-xs text-zinc-500 font-medium">Stock: {product.stock}</span>
                     <div className="flex items-center gap-2">
-                        {/* 💥 NEW: Edit Button works now */}
                         <button onClick={() => openEditModal(product)} className="p-1.5 text-zinc-400 hover:text-white bg-zinc-900 rounded-md transition-colors">
                             <Edit className="w-3.5 h-3.5" />
                         </button>
