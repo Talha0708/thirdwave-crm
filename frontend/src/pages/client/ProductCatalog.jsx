@@ -57,7 +57,6 @@ const ProductCatalog = () => {
       setFormData({ name: '', category: '', price: '', stock: '', sizes: [], status: 'Active' });
   };
 
-  // 💥 FIX 1: Add Modal ওপেন হলে সব আইডি ও ডেটা মুছে ফ্রেশ হবে
   const openAddModal = () => {
       setEditingId(null);
       setFormData({ name: '', category: '', price: '', stock: '', sizes: [], status: 'Active' });
@@ -121,6 +120,14 @@ const ProductCatalog = () => {
     (product.category && product.category.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  // 💥 FIX: Senior Level Status Logic
+  const getStatusDisplay = (product) => {
+    if (product.status === 'Draft') return { text: 'Draft', color: 'text-zinc-500' };
+    if (product.status === 'Out of Stock' || product.stock <= 0) return { text: 'Out of Stock', color: 'text-red-500' };
+    if (product.stock > 0 && product.stock <= 10) return { text: 'Low Stock', color: 'text-amber-500' };
+    return { text: 'In Stock', color: 'text-emerald-500' };
+  };
+
   return (
     <div className="max-w-7xl mx-auto pb-10 animate-in fade-in duration-500">
       
@@ -143,7 +150,6 @@ const ProductCatalog = () => {
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="text-sm text-zinc-400 block mb-1.5">Category</label>
-                            {/* 💥 FIX 2: Pure Text Input - তুই যা খুশি টাইপ করতে পারবি */}
                             <input 
                                 required 
                                 type="text" 
@@ -152,7 +158,6 @@ const ProductCatalog = () => {
                                 className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" 
                                 placeholder="Type Category..."
                             />
-                            {/* শর্টকাট বাটন */}
                             <div className="flex flex-wrap gap-1.5 mt-2">
                                 {['Panjabi', 'Shirt', 'Pant', 'T-Shirt'].map(cat => (
                                     <button 
@@ -186,7 +191,6 @@ const ProductCatalog = () => {
                         </div>
                     </div>
 
-                    {/* Available Sizes Selection */}
                     <div>
                         <label className="text-sm text-zinc-400 block mb-2">Available Sizes</label>
                         <div className="flex gap-2 flex-wrap">
@@ -222,7 +226,6 @@ const ProductCatalog = () => {
           </h1>
           <p className="text-sm text-zinc-400 mt-1">Manage your products and train your AI on inventory.</p>
         </div>
-        {/* 💥 FIX: Add Product Button now properly opens fresh modal */}
         <button onClick={openAddModal} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-all active:scale-[0.98]">
           <Plus className="w-4 h-4" /> Add Product
         </button>
@@ -254,7 +257,11 @@ const ProductCatalog = () => {
       ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {filteredProducts.length > 0 ? (
-                filteredProducts.map((product) => (
+                filteredProducts.map((product) => {
+                // 💥 FIX: Appling logic here
+                const statusDisplay = getStatusDisplay(product);
+
+                return (
                 <div key={product._id} className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl overflow-hidden group hover:border-zinc-700 transition-colors flex flex-col">
                     
                     {/* Image Placeholder */}
@@ -272,10 +279,9 @@ const ProductCatalog = () => {
                     <div className="p-5 flex-1 flex flex-col">
                     <div className="flex justify-between items-start mb-2">
                         <p className="text-xs font-mono text-zinc-500">{product.category || 'Product'}</p>
-                        <span className={`text-[10px] font-semibold uppercase tracking-wider ${
-                        product.stock > 10 ? 'text-emerald-500' : product.stock > 0 ? 'text-amber-500' : 'text-red-500'
-                        }`}>
-                        {product.stock > 0 ? 'In Stock' : 'Out of Stock'}
+                        {/* 💥 FIX: Real Status Colors & Text */}
+                        <span className={`text-[10px] font-semibold uppercase tracking-wider ${statusDisplay.color}`}>
+                            {statusDisplay.text}
                         </span>
                     </div>
                     
@@ -307,7 +313,8 @@ const ProductCatalog = () => {
                     </div>
 
                 </div>
-                ))
+                )
+            })
             ) : (
                 <div className="col-span-full py-12 text-center border border-dashed border-zinc-800 rounded-2xl">
                     <PackageSearch className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
