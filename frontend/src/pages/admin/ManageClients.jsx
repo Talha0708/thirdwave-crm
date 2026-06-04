@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
-import { Search, Filter, Plus, UserPlus, Loader2, Edit, X } from 'lucide-react';
+import { Search, Filter, Plus, UserPlus, Loader2, Edit, X, AlertCircle } from 'lucide-react';
 
 const ManageClients = () => {
     const { token } = useAuth();
@@ -9,6 +9,7 @@ const ManageClients = () => {
     const [clients, setClients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [fetchError, setFetchError] = useState(''); // 💥 NEW: Error Detector State
     
     // Add Client States
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -23,16 +24,21 @@ const ManageClients = () => {
 
     const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
 
-    // ─── ১. ক্যাশ-বাস্টার দিয়ে ডেটা ফেচ করা (যাতে Vercel পুরানো ডেটা না দেখায়) ───
+    // ─── API Fetch Logic with Error Handling ───
     const fetchClients = async () => {
         try {
             setLoading(true);
+            setFetchError(''); // Reset previous errors
             const config = { headers: { Authorization: `Bearer ${token}` } };
-            // URL এর শেষে ?t= টাইমস্ট্যাম্প দিয়ে ক্যাশ ধ্বংস করা হয়েছে
             const response = await axios.get(`${API_URL}/admin/clients?t=${new Date().getTime()}`, config);
-            if (response.data.success) setClients(response.data.data);
+            
+            if (response.data.success) {
+                setClients(response.data.data);
+            }
         } catch (error) {
-            console.error("Error fetching clients:", error);
+            console.error("Fetch API Error:", error);
+            // 💥 স্ক্রিনে এরর দেখানোর ম্যাজিক
+            setFetchError(error.response?.data?.error || error.message || "Failed to connect to database");
         } finally {
             setLoading(false);
         }
@@ -53,7 +59,7 @@ const ManageClients = () => {
             
             setAddFormData({ name: '', email: '', password: '', company: '', plan: 'Basic', mrr: '', status: 'Active' });
             setIsAddModalOpen(false);
-            await fetchClients(); // ডেটা রিফ্রেশ
+            await fetchClients();
         } catch (err) {
             setAddError(err.response?.data?.error || 'Failed to add client');
         } finally {
@@ -74,7 +80,7 @@ const ManageClients = () => {
         setIsEditModalOpen(true);
     };
 
-    // ─── ২. এডিট করার লজিক (আপডেট হওয়ার পর ফোর্স রিফ্রেশ) ───
+    // Edit Submit
     const handleEditClient = async (e) => {
         e.preventDefault();
         setEditLoading(true);
@@ -87,7 +93,7 @@ const ManageClients = () => {
             }, config);
             
             setIsEditModalOpen(false);
-            await fetchClients(); // 💥 আপডেট হওয়ার সাথে সাথে নতুন ডেটা জোর করে আনবে
+            await fetchClients(); 
         } catch (err) {
             console.error("Update failed", err);
         } finally {
@@ -253,6 +259,15 @@ const ManageClients = () => {
                                         <p className="text-zinc-500">Loading workspaces...</p>
                                     </td>
                                 </tr>
+                            ) : fetchError ? ( // 💥 NEW: ERROR UI
+                                <tr>
+                                    <td colSpan="5" className="px-6 py-12 text-center bg-red-950/10">
+                                        <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
+                                        <p className="text-red-400 font-semibold text-lg">System Error Detected</p>
+                                        <p className="text-zinc-400 mt-1">{fetchError}</p>
+                                        <p className="text-zinc-500 text-xs mt-2">Press F12 and check the Console for more details.</p>
+                                    </td>
+                                </tr>
                             ) : filteredClients.length > 0 ? (
                                 filteredClients.map((client) => (
                                     <tr key={client._id} className="hover:bg-zinc-900/30 transition-colors group">
@@ -305,7 +320,7 @@ const ManageClients = () => {
                             ) : (
                                 <tr>
                                     <td colSpan="5" className="px-6 py-12 text-center text-zinc-500">
-                                        No matching workspaces found.
+                                        No matching workspaces found in database.
                                     </td>
                                 </tr>
                             )}
