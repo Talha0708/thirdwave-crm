@@ -20,41 +20,36 @@ export const getDashboardStats = async (req, res) => {
     }
 };
 
-// ─── অ্যাডমিন প্যানেল থেকে ক্লায়েন্ট অ্যাড করার ফাংশন ───
+// ─── রিয়েল ক্লায়েন্ট অ্যাড ফাংশন (Plan, MRR, Status সহ) ───
 export const addClient = async (req, res) => {
     try {
-        const { name, email, password, company } = req.body;
+        const { name, email, password, company, plan, mrr, status } = req.body;
         
         const userExists = await User.findOne({ email });
         if (userExists) return res.status(400).json({ error: 'Email already exists' });
 
-        const user = await User.create({ name, email, password, company, role: 'user' });
-
-        res.status(201).json({
-            success: true,
-            message: 'Client added successfully',
-            user: { _id: user._id, name: user.name, email: user.email, company: user.company, role: user.role, createdAt: user.createdAt }
+        const user = await User.create({ 
+            name, email, password, company, role: 'user', 
+            plan: plan || 'Basic', 
+            mrr: mrr || 0, 
+            status: status || 'Active' 
         });
+
+        res.status(201).json({ success: true, message: 'Client added successfully', user });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };
 
-// ─── NEW: সব ক্লায়েন্টদের লিস্ট পাওয়ার ফাংশন (Manage Clients পেজের জন্য) ───
+// ─── সব ক্লায়েন্ট পাওয়ার ফাংশন ───
 export const getAllClients = async (req, res) => {
     try {
-        // ডেটাবেস থেকে শুধু ক্লায়েন্টদের (role: 'user') খুঁজে বের করবে
         const clients = await User.find({ role: 'user' })
-                                  .select('-password') // পাসওয়ার্ড হাইড থাকবে
-                                  .sort({ createdAt: -1 }); // নতুনরা আগে আসবে
+                                  .select('-password')
+                                  .sort({ createdAt: -1 });
 
-        res.status(200).json({
-            success: true,
-            count: clients.length,
-            data: clients
-        });
+        res.status(200).json({ success: true, count: clients.length, data: clients });
     } catch (error) {
-        console.error("Get All Clients Error:", error);
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };
