@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
-import { Search, Filter, Plus, UserPlus, Loader2, MoreHorizontal, X } from 'lucide-react';
+import { Search, Filter, Plus, UserPlus, Loader2, Edit, X } from 'lucide-react';
 
 const ManageClients = () => {
     const { token } = useAuth();
@@ -10,13 +10,16 @@ const ManageClients = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    // ─── NEW: ফর্ম স্টেটে প্ল্যান, এমআরআর, স্ট্যাটাস অ্যাড করা হলো ───
-    const [formData, setFormData] = useState({ 
-        name: '', email: '', password: '', company: '', plan: 'Basic', mrr: '', status: 'Active' 
-    });
+    // Add Client States
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [addFormData, setAddFormData] = useState({ name: '', email: '', password: '', company: '', plan: 'Basic', mrr: '', status: 'Active' });
     const [addLoading, setAddLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [addError, setAddError] = useState('');
+
+    // ─── Edit Client States ───
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editFormData, setEditFormData] = useState({ id: '', name: '', company: '', plan: '', mrr: '', status: '' });
+    const [editLoading, setEditLoading] = useState(false);
 
     const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
 
@@ -37,21 +40,56 @@ const ManageClients = () => {
         if (token) fetchClients();
     }, [API_URL, token]);
 
+    // Add Submit
     const handleAddClient = async (e) => {
         e.preventDefault();
         setAddLoading(true);
-        setError('');
+        setAddError('');
         try {
             const config = { headers: { Authorization: `Bearer ${token}` } };
-            await axios.post(`${API_URL}/admin/add-client`, formData, config);
+            await axios.post(`${API_URL}/admin/add-client`, addFormData, config);
             
-            setFormData({ name: '', email: '', password: '', company: '', plan: 'Basic', mrr: '', status: 'Active' });
-            setIsModalOpen(false);
+            setAddFormData({ name: '', email: '', password: '', company: '', plan: 'Basic', mrr: '', status: 'Active' });
+            setIsAddModalOpen(false);
             fetchClients();
         } catch (err) {
-            setError(err.response?.data?.error || 'Failed to add client');
+            setAddError(err.response?.data?.error || 'Failed to add client');
         } finally {
             setAddLoading(false);
+        }
+    };
+
+    // ─── Open Edit Modal ───
+    const openEditModal = (client) => {
+        setEditFormData({
+            id: client._id,
+            name: client.name,
+            company: client.company,
+            plan: client.plan || 'Basic',
+            mrr: client.mrr || 0,
+            status: client.status || 'Active'
+        });
+        setIsEditModalOpen(true);
+    };
+
+    // ─── Edit Submit ───
+    const handleEditClient = async (e) => {
+        e.preventDefault();
+        setEditLoading(true);
+        try {
+            const config = { headers: { Authorization: `Bearer ${token}` } };
+            await axios.put(`${API_URL}/admin/client/${editFormData.id}`, {
+                plan: editFormData.plan,
+                mrr: editFormData.mrr,
+                status: editFormData.status
+            }, config);
+            
+            setIsEditModalOpen(false);
+            fetchClients(); // রিফ্রেশ টেবিল
+        } catch (err) {
+            console.error("Update failed", err);
+        } finally {
+            setEditLoading(false);
         }
     };
 
@@ -64,42 +102,38 @@ const ManageClients = () => {
     return (
         <div className="max-w-7xl mx-auto animate-in fade-in duration-500 relative">
             
-            {/* ─── REAL Add Client Modal ─── */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+            {/* ─── ADD Client Modal ─── */}
+            {isAddModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
                     <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl my-8">
                         <div className="flex justify-between items-center p-6 border-b border-zinc-800/50 sticky top-0 bg-[#0A0A0A] rounded-t-2xl z-10">
                             <h2 className="text-xl font-semibold text-white">Create New Workspace</h2>
-                            <button onClick={() => setIsModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+                            <button onClick={() => setIsAddModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
                         </div>
                         <form onSubmit={handleAddClient} className="p-6 space-y-4">
-                            {error && <p className="text-red-400 text-sm bg-red-400/10 p-3 rounded-lg border border-red-400/20">{error}</p>}
-                            
+                            {addError && <p className="text-red-400 text-sm bg-red-400/10 p-3 rounded-lg border border-red-400/20">{addError}</p>}
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="col-span-2 sm:col-span-1">
                                     <label className="text-sm text-zinc-400 block mb-1.5">Client Name</label>
-                                    <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="e.g. Talha Belal" />
+                                    <input required type="text" value={addFormData.name} onChange={e => setAddFormData({...addFormData, name: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" />
                                 </div>
                                 <div className="col-span-2 sm:col-span-1">
                                     <label className="text-sm text-zinc-400 block mb-1.5">Company Name</label>
-                                    <input required type="text" value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="e.g. Aurelian" />
+                                    <input required type="text" value={addFormData.company} onChange={e => setAddFormData({...addFormData, company: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" />
                                 </div>
                             </div>
-
                             <div>
                                 <label className="text-sm text-zinc-400 block mb-1.5">Email Address</label>
-                                <input required type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="admin@domain.com" />
+                                <input required type="email" value={addFormData.email} onChange={e => setAddFormData({...addFormData, email: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" />
                             </div>
-                            
                             <div>
                                 <label className="text-sm text-zinc-400 block mb-1.5">Initial Password</label>
-                                <input required type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="••••••••" />
+                                <input required type="password" value={addFormData.password} onChange={e => setAddFormData({...addFormData, password: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" />
                             </div>
-
                             <div className="grid grid-cols-3 gap-4 pt-2 border-t border-zinc-800/50">
                                 <div>
                                     <label className="text-sm text-zinc-400 block mb-1.5">Plan</label>
-                                    <select value={formData.plan} onChange={e => setFormData({...formData, plan: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50 appearance-none">
+                                    <select value={addFormData.plan} onChange={e => setAddFormData({...addFormData, plan: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50">
                                         <option value="Basic">Basic</option>
                                         <option value="Pro">Pro</option>
                                         <option value="Enterprise">Enterprise</option>
@@ -107,20 +141,59 @@ const ManageClients = () => {
                                 </div>
                                 <div>
                                     <label className="text-sm text-zinc-400 block mb-1.5">MRR (৳)</label>
-                                    <input required type="number" value={formData.mrr} onChange={e => setFormData({...formData, mrr: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="8000" />
+                                    <input required type="number" value={addFormData.mrr} onChange={e => setAddFormData({...addFormData, mrr: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" />
                                 </div>
                                 <div>
                                     <label className="text-sm text-zinc-400 block mb-1.5">Status</label>
-                                    <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50 appearance-none">
+                                    <select value={addFormData.status} onChange={e => setAddFormData({...addFormData, status: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50">
                                         <option value="Active">Active</option>
                                         <option value="Onboarding">Onboarding</option>
                                         <option value="Suspended">Suspended</option>
                                     </select>
                                 </div>
                             </div>
-
                             <button type="submit" disabled={addLoading} className="w-full mt-6 flex items-center justify-center gap-2 py-3 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-70">
                                 {addLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Deploy Workspace'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── EDIT Client Modal ─── */}
+            {isEditModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl w-full max-w-md shadow-2xl my-8">
+                        <div className="flex justify-between items-center p-6 border-b border-zinc-800/50">
+                            <div>
+                                <h2 className="text-xl font-semibold text-white">Update Workspace</h2>
+                                <p className="text-xs text-zinc-500 mt-1">Editing settings for <strong className="text-zinc-300">{editFormData.company || editFormData.name}</strong></p>
+                            </div>
+                            <button onClick={() => setIsEditModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+                        </div>
+                        <form onSubmit={handleEditClient} className="p-6 space-y-5">
+                            <div>
+                                <label className="text-sm text-zinc-400 block mb-1.5">Subscription Plan</label>
+                                <select value={editFormData.plan} onChange={e => setEditFormData({...editFormData, plan: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500/50">
+                                    <option value="Basic">Basic</option>
+                                    <option value="Pro">Pro</option>
+                                    <option value="Enterprise">Enterprise</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-sm text-zinc-400 block mb-1.5">Monthly Recurring Revenue (৳)</label>
+                                <input required type="number" value={editFormData.mrr} onChange={e => setEditFormData({...editFormData, mrr: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500/50" />
+                            </div>
+                            <div>
+                                <label className="text-sm text-zinc-400 block mb-1.5">Account Status</label>
+                                <select value={editFormData.status} onChange={e => setEditFormData({...editFormData, status: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500/50">
+                                    <option value="Active">Active</option>
+                                    <option value="Onboarding">Onboarding</option>
+                                    <option value="Suspended">Suspended (Disable Access)</option>
+                                </select>
+                            </div>
+                            <button type="submit" disabled={editLoading} className="w-full mt-4 flex items-center justify-center gap-2 py-3 bg-white text-black text-sm font-semibold rounded-lg hover:bg-zinc-200 transition-all active:scale-[0.98] disabled:opacity-70">
+                                {editLoading ? <Loader2 className="w-4 h-4 animate-spin text-black" /> : 'Save Changes'}
                             </button>
                         </form>
                     </div>
@@ -138,7 +211,7 @@ const ManageClients = () => {
                         <p className="text-sm text-zinc-400 mt-1">Add, edit, or suspend client accounts across the CRM.</p>
                     </div>
                 </div>
-                <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-all active:scale-[0.98]">
+                <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-all active:scale-[0.98]">
                     <Plus className="w-4 h-4" /> Add New Client
                 </button>
             </div>
@@ -157,7 +230,7 @@ const ManageClients = () => {
                 </button>
             </div>
 
-            {/* ─── REAL Clients Table ─── */}
+            {/* ─── Clients Table ─── */}
             <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
@@ -217,8 +290,13 @@ const ManageClients = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <button className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition-all">
-                                                <MoreHorizontal className="w-4 h-4" />
+                                            {/* ─── NEW: Edit Button ─── */}
+                                            <button 
+                                                onClick={() => openEditModal(client)} 
+                                                className="p-2 text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all"
+                                                title="Edit/Suspend Workspace"
+                                            >
+                                                <Edit className="w-4 h-4" />
                                             </button>
                                         </td>
                                     </tr>

@@ -1,13 +1,13 @@
 import express from 'express';
-// getAllClients টা ইম্পোর্টে অ্যাড কর
-import { getDashboardStats, addClient, getAllClients } from '../controllers/adminController.js';
+import { getDashboardStats, addClient, getAllClients, updateClient } from '../controllers/adminController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 router.get('/dashboard-stats', protect, admin, getDashboardStats);
 router.post('/add-client', protect, admin, addClient);
-// ─── NEW ROUTE ───
 router.get('/clients', protect, admin, getAllClients);
+// ─── NEW: এডিট করার PUT রাউট ───
+router.put('/client/:id', protect, admin, updateClient); 
 
 export default router;

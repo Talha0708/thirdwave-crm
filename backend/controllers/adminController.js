@@ -20,7 +20,6 @@ export const getDashboardStats = async (req, res) => {
     }
 };
 
-// ─── রিয়েল ক্লায়েন্ট অ্যাড ফাংশন (Plan, MRR, Status সহ) ───
 export const addClient = async (req, res) => {
     try {
         const { name, email, password, company, plan, mrr, status } = req.body;
@@ -41,7 +40,6 @@ export const addClient = async (req, res) => {
     }
 };
 
-// ─── সব ক্লায়েন্ট পাওয়ার ফাংশন ───
 export const getAllClients = async (req, res) => {
     try {
         const clients = await User.find({ role: 'user' })
@@ -50,6 +48,34 @@ export const getAllClients = async (req, res) => {
 
         res.status(200).json({ success: true, count: clients.length, data: clients });
     } catch (error) {
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// ─── NEW: ক্লায়েন্ট এডিট/সাসপেন্ড করার ফাংশন ───
+export const updateClient = async (req, res) => {
+    try {
+        const { plan, mrr, status } = req.body;
+        const user = await User.findById(req.params.id);
+
+        if (!user) {
+            return res.status(404).json({ error: 'Client not found' });
+        }
+
+        // নতুন ডেটা দিয়ে আপডেট করা
+        user.plan = plan || user.plan;
+        user.mrr = mrr || user.mrr;
+        user.status = status || user.status;
+
+        const updatedUser = await user.save();
+
+        res.status(200).json({ 
+            success: true, 
+            message: 'Client updated successfully', 
+            user: updatedUser 
+        });
+    } catch (error) {
+        console.error("Update Client Error:", error);
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };
