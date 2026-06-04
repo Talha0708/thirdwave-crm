@@ -42,7 +42,6 @@ const ProductCatalog = () => {
     if (token) fetchProducts();
   }, [API_URL, token]);
 
-  // ─── Handle Form Changes ───
   const handleSizeToggle = (size) => {
       setFormData(prev => ({
           ...prev,
@@ -58,8 +57,16 @@ const ProductCatalog = () => {
       setFormData({ name: '', category: '', price: '', stock: '', sizes: [], status: 'Active' });
   };
 
+  // 💥 NEW FIX: Open Add Modal (সব ডেটা ফ্রেশ করে ওপেন করবে)
+  const openAddModal = () => {
+      setEditingId(null);
+      setFormData({ name: '', category: '', price: '', stock: '', sizes: [], status: 'Active' });
+      setIsModalOpen(true);
+  };
+
   // ─── Open Edit Modal ───
   const openEditModal = (product) => {
+      setEditingId(product._id);
       setFormData({
           name: product.name,
           category: product.category || '',
@@ -68,11 +75,10 @@ const ProductCatalog = () => {
           sizes: product.sizes || [],
           status: product.status || 'Active'
       });
-      setEditingId(product._id);
       setIsModalOpen(true);
   };
 
-  // ─── Add or Update Product (💥 With Error Alert) ───
+  // ─── Add or Update Product ───
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitLoading(true);
@@ -96,9 +102,8 @@ const ProductCatalog = () => {
       await fetchProducts(); 
     } catch (err) {
       console.error("Failed to save product", err);
-      // 💥 চোর ধরার অ্যালার্ট!
       const errorMessage = err.response?.data?.error || err.message || "Unknown Error";
-      alert(`⚠️ Save Failed!\nReason: ${errorMessage}\n\nCheck if your backend is running or Vercel crashed.`);
+      alert(`⚠️ Save Failed!\nReason: ${errorMessage}\n\nCheck if your backend is running.`);
     } finally {
       setSubmitLoading(false);
     }
@@ -116,7 +121,6 @@ const ProductCatalog = () => {
       }
   };
 
-  // ─── Search Logic ───
   const filteredProducts = products.filter(product => 
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     (product.category && product.category.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -127,7 +131,7 @@ const ProductCatalog = () => {
       
       {/* ─── ADD/EDIT Product Modal ─── */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
             <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl my-8">
                 <div className="flex justify-between items-center p-6 border-b border-zinc-800/50 sticky top-0 bg-[#0A0A0A] rounded-t-2xl z-10">
                     <h2 className="text-xl font-semibold text-white">
@@ -218,7 +222,8 @@ const ProductCatalog = () => {
           </h1>
           <p className="text-sm text-zinc-400 mt-1">Manage your products and train your AI on inventory.</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-white text-black text-sm font-semibold rounded-lg hover:bg-zinc-200 transition-all active:scale-[0.98]">
+        {/* 💥 FIX: Add Product Button now properly resets state */}
+        <button onClick={openAddModal} className="flex items-center gap-2 px-5 py-2.5 bg-white text-black text-sm font-semibold rounded-lg hover:bg-zinc-200 transition-all active:scale-[0.98]">
           <Plus className="w-4 h-4" /> Add Product
         </button>
       </div>
@@ -312,7 +317,6 @@ const ProductCatalog = () => {
             )}
           </div>
       )}
-
     </div>
   );
 };
