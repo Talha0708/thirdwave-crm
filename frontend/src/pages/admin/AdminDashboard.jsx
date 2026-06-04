@@ -2,49 +2,63 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import { 
-  Users, 
-  Server, 
-  DollarSign, 
-  Activity, 
-  ArrowUpRight, 
-  ShieldCheck, 
-  Zap,
-  MoreVertical,
-  Loader2
+  Users, Server, DollarSign, Activity, ArrowUpRight, 
+  ShieldCheck, Zap, MoreVertical, Loader2, Plus, X 
 } from 'lucide-react';
 
 const AdminDashboard = () => {
   const { user, token } = useAuth();
   
-  // রিয়েল ডেটা রাখার জন্য স্টেট
   const [dbStats, setDbStats] = useState({ totalClients: 0, revenue: 0 });
   const [recentUsers, setRecentUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Modal States
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', company: '' });
+  const [addLoading, setAddLoading] = useState(false);
+  const [error, setError] = useState('');
+
   const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
 
-  // API থেকে ডেটা ফেচ করার লজিক
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-        try {
-            const config = { headers: { Authorization: `Bearer ${token}` } };
-            const response = await axios.get(`${API_URL}/admin/dashboard-stats`, config);
-            
-            if (response.data.success) {
-                setDbStats(response.data.stats);
-                setRecentUsers(response.data.recentUsers);
-            }
-        } catch (error) {
-            console.error("Error fetching dashboard data:", error);
-        } finally {
-            setLoading(false);
+  const fetchDashboardData = async () => {
+    try {
+        const config = { headers: { Authorization: `Bearer ${token}` } };
+        const response = await axios.get(`${API_URL}/admin/dashboard-stats`, config);
+        if (response.data.success) {
+            setDbStats(response.data.stats);
+            setRecentUsers(response.data.recentUsers);
         }
-    };
+    } catch (error) {
+        console.error("Error fetching data:", error);
+    } finally {
+        setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     if (token) fetchDashboardData();
   }, [API_URL, token]);
 
-  // ডাইনামিক স্ট্যাটিস্টিকস (API থেকে পাওয়া ডেটা + তোর কাস্টম ডিজাইন)
+  // Handle Add Client Submit
+  const handleAddClient = async (e) => {
+      e.preventDefault();
+      setAddLoading(true);
+      setError('');
+      try {
+          const config = { headers: { Authorization: `Bearer ${token}` } };
+          await axios.post(`${API_URL}/admin/add-client`, formData, config);
+          
+          setFormData({ name: '', email: '', password: '', company: '' });
+          setIsModalOpen(false);
+          fetchDashboardData(); // নতুন ক্লায়েন্ট অ্যাড হলে ড্যাশবোর্ড রিলোড করবে
+      } catch (err) {
+          setError(err.response?.data?.error || 'Failed to add client');
+      } finally {
+          setAddLoading(false);
+      }
+  };
+
   const stats = [
     { label: 'Total MRR (Revenue)', value: `৳ ${dbStats.revenue || '0'}`, trend: '+15.2%', isPositive: true, icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/20' },
     { label: 'Active Clients', value: dbStats.totalClients, trend: 'Live', isPositive: true, icon: Users, color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/20' },
@@ -52,18 +66,50 @@ const AdminDashboard = () => {
     { label: 'System Health', value: '99.9%', trend: 'Stable', isPositive: true, icon: Server, color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/20' }
   ];
 
-  if (loading) {
-      return (
-          <div className="flex flex-col items-center justify-center h-[60vh]">
-              <Loader2 className="w-10 h-10 text-zinc-500 animate-spin mb-4" />
-              <p className="text-zinc-400 font-medium animate-pulse">Syncing strictly with MongoDB Cluster...</p>
-          </div>
-      );
-  }
+  if (loading) return (
+      <div className="flex flex-col items-center justify-center h-[60vh]">
+          <Loader2 className="w-10 h-10 text-zinc-500 animate-spin mb-4" />
+          <p className="text-zinc-400 font-medium animate-pulse">Syncing strictly with MongoDB Cluster...</p>
+      </div>
+  );
 
   return (
-    <div className="max-w-7xl mx-auto pb-10 animate-in fade-in duration-500">
+    <div className="max-w-7xl mx-auto pb-10 animate-in fade-in duration-500 relative">
       
+      {/* ─── Add Client Modal ─── */}
+      {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+              <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
+                  <div className="flex justify-between items-center p-6 border-b border-zinc-800/50">
+                      <h2 className="text-xl font-semibold text-white">Create Workspace</h2>
+                      <button onClick={() => setIsModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+                  </div>
+                  <form onSubmit={handleAddClient} className="p-6 space-y-4">
+                      {error && <p className="text-red-400 text-sm bg-red-400/10 p-3 rounded-lg border border-red-400/20">{error}</p>}
+                      <div>
+                          <label className="text-sm text-zinc-400 block mb-1.5">Client Name</label>
+                          <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-colors" placeholder="e.g. Aurelian Menswear" />
+                      </div>
+                      <div>
+                          <label className="text-sm text-zinc-400 block mb-1.5">Company / Brand</label>
+                          <input required type="text" value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-colors" placeholder="Thirdwave Future Tech" />
+                      </div>
+                      <div>
+                          <label className="text-sm text-zinc-400 block mb-1.5">Email Address</label>
+                          <input required type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-colors" placeholder="client@brand.com" />
+                      </div>
+                      <div>
+                          <label className="text-sm text-zinc-400 block mb-1.5">Temporary Password</label>
+                          <input required type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-colors" placeholder="••••••••" />
+                      </div>
+                      <button type="submit" disabled={addLoading} className="w-full mt-2 flex items-center justify-center gap-2 py-3 bg-white text-black text-sm font-semibold rounded-lg hover:bg-zinc-200 transition-all active:scale-[0.98] disabled:opacity-70">
+                          {addLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Account'}
+                      </button>
+                  </form>
+              </div>
+          </div>
+      )}
+
       {/* ─── Header Section ─── */}
       <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -72,9 +118,14 @@ const AdminDashboard = () => {
           </h1>
           <p className="text-sm text-zinc-400 mt-1">System overview and infrastructure status for {user?.name}.</p>
         </div>
-        <button className="flex items-center gap-2 px-5 py-2.5 bg-white text-black text-sm font-semibold rounded-lg hover:bg-zinc-200 transition-all active:scale-[0.98]">
-          <Zap className="w-4 h-4" /> Deploy Updates
-        </button>
+        <div className="flex gap-3">
+          <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600/10 border border-blue-500/20 text-blue-400 text-sm font-semibold rounded-lg hover:bg-blue-600/20 transition-all active:scale-[0.98]">
+            <Plus className="w-4 h-4" /> New Workspace
+          </button>
+          <button className="flex items-center gap-2 px-5 py-2.5 bg-white text-black text-sm font-semibold rounded-lg hover:bg-zinc-200 transition-all active:scale-[0.98]">
+            <Zap className="w-4 h-4" /> Deploy Updates
+          </button>
+        </div>
       </div>
 
       {/* ─── Top Level Stats ─── */}
@@ -82,7 +133,6 @@ const AdminDashboard = () => {
         {stats.map((stat, index) => (
           <div key={index} className="bg-[#0A0A0A] border border-zinc-800 p-6 rounded-2xl relative overflow-hidden group hover:border-zinc-700 transition-colors">
             <div className={`absolute -top-10 -right-10 w-32 h-32 ${stat.bg} rounded-full blur-3xl opacity-30 group-hover:opacity-60 transition-opacity`}></div>
-            
             <div className="relative z-10 flex justify-between items-start mb-4">
               <div className={`p-3 rounded-xl ${stat.bg} ${stat.border} border`}>
                 <stat.icon className={`w-5 h-5 ${stat.color}`} />
@@ -91,7 +141,6 @@ const AdminDashboard = () => {
                 {stat.trend} {stat.trend !== 'Stable' && stat.trend !== 'Live' && <ArrowUpRight className="w-3 h-3 ml-1" />}
               </span>
             </div>
-            
             <div className="relative z-10">
               <h3 className="text-3xl font-bold text-white mb-1">{stat.value}</h3>
               <p className="text-sm font-medium text-zinc-500">{stat.label}</p>
@@ -101,14 +150,12 @@ const AdminDashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
         {/* ─── Recent Clients Table (Real Data) ─── */}
         <div className="lg:col-span-2 bg-[#0A0A0A] border border-zinc-800 rounded-2xl overflow-hidden flex flex-col">
           <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
             <h2 className="text-lg font-semibold text-white">Recent Workspaces</h2>
             <button className="text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors">View All</button>
           </div>
-          
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-left text-sm text-zinc-400">
               <thead className="bg-[#111111] text-zinc-500 font-medium">
@@ -158,9 +205,7 @@ const AdminDashboard = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="5" className="px-6 py-8 text-center text-zinc-500">
-                      No recent clients found in database.
-                    </td>
+                    <td colSpan="5" className="px-6 py-8 text-center text-zinc-500">No recent clients found.</td>
                   </tr>
                 )}
               </tbody>
@@ -174,9 +219,7 @@ const AdminDashboard = () => {
             <Server className="w-5 h-5 text-indigo-400" />
             <h2 className="text-lg font-semibold text-white">Infrastructure</h2>
           </div>
-          
           <div className="space-y-6">
-            {/* Edge Network Status */}
             <div className="p-4 border border-zinc-800 rounded-xl bg-[#111111]">
               <div className="flex justify-between items-start mb-2">
                 <div>
@@ -189,12 +232,10 @@ const AdminDashboard = () => {
                 </span>
               </div>
               <div className="mt-4 flex items-center justify-between text-xs text-zinc-400">
-                <span>Latency</span>
-                <span className="font-mono text-emerald-400">24ms</span>
+                <span>Latency</span><span className="font-mono text-emerald-400">24ms</span>
               </div>
             </div>
 
-            {/* Database Status */}
             <div className="p-4 border border-zinc-800 rounded-xl bg-[#111111]">
               <div className="flex justify-between items-start mb-2">
                 <div>
@@ -205,8 +246,7 @@ const AdminDashboard = () => {
               </div>
               <div className="mt-4 flex flex-col gap-2">
                 <div className="flex justify-between text-xs text-zinc-400">
-                  <span>Storage Used</span>
-                  <span>14% (1.4GB)</span>
+                  <span>Storage Used</span><span>14% (1.4GB)</span>
                 </div>
                 <div className="w-full bg-zinc-900 rounded-full h-1.5">
                   <div className="bg-indigo-500 h-1.5 rounded-full" style={{ width: '14%' }}></div>
@@ -214,7 +254,6 @@ const AdminDashboard = () => {
               </div>
             </div>
             
-            {/* Webhook Status */}
             <div className="p-4 border border-red-900/30 rounded-xl bg-red-950/10">
               <div className="flex justify-between items-start mb-2">
                 <div>
@@ -225,10 +264,8 @@ const AdminDashboard = () => {
               </div>
               <button className="mt-3 text-xs font-medium text-red-400 hover:text-red-300">Increase Limit &rarr;</button>
             </div>
-
           </div>
         </div>
-
       </div>
     </div>
   );
