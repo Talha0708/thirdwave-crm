@@ -82,7 +82,6 @@ export const updateClient = async (req, res) => {
             user: updatedUser 
         });
     } catch (error) {
-        console.error("Update Client Error:", error);
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };
