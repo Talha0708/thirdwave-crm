@@ -7,6 +7,7 @@ import connectDB from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import clientRoutes from './routes/clientRoutes.js'; // ✅ নতুন ক্লায়েন্ট রাউট ইমপোর্ট করা হলো
+import productRoutes from './routes/productRoutes.js'; // 👈 NEW
 
 // রুট ফোল্ডার থেকে .env রিড করার সেটআপ
 const __filename = fileURLToPath(import.meta.url);
@@ -26,6 +27,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/client', clientRoutes); // ✅ ক্লায়েন্ট রাউট কানেক্ট করা হলো
+app.use('/api/products', productRoutes); // 👈 NEW
 
 // বেসিক টেস্টিং রাউট
 app.get('/api', (req, res) => {
