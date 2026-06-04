@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
-import { PackageSearch, Plus, Search, Filter, Edit, Trash2, CheckCircle2, XCircle, Loader2, X } from 'lucide-react';
+import { PackageSearch, Plus, Search, Filter, Edit, Trash2, CheckCircle2, Loader2, X } from 'lucide-react';
 
 const ProductCatalog = () => {
   const { token } = useAuth();
@@ -120,7 +120,7 @@ const ProductCatalog = () => {
     (product.category && product.category.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // 💥 FIX: Senior Level Status Logic
+  // প্রো-লেভেল স্ট্যাটাস লজিক
   const getStatusDisplay = (product) => {
     if (product.status === 'Draft') return { text: 'Draft', color: 'text-zinc-500' };
     if (product.status === 'Out of Stock' || product.stock <= 0) return { text: 'Out of Stock', color: 'text-red-500' };
@@ -258,7 +258,6 @@ const ProductCatalog = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {filteredProducts.length > 0 ? (
                 filteredProducts.map((product) => {
-                // 💥 FIX: Appling logic here
                 const statusDisplay = getStatusDisplay(product);
 
                 return (
@@ -279,7 +278,6 @@ const ProductCatalog = () => {
                     <div className="p-5 flex-1 flex flex-col">
                     <div className="flex justify-between items-start mb-2">
                         <p className="text-xs font-mono text-zinc-500">{product.category || 'Product'}</p>
-                        {/* 💥 FIX: Real Status Colors & Text */}
                         <span className={`text-[10px] font-semibold uppercase tracking-wider ${statusDisplay.color}`}>
                             {statusDisplay.text}
                         </span>
