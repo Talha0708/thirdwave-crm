@@ -6,42 +6,50 @@ export const getProducts = async (req, res) => {
         const products = await Product.find({ user: req.user._id }).sort({ createdAt: -1 });
         res.status(200).json({ success: true, data: products });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Server Error' });
+        res.status(500).json({ success: false, error: error.message || 'Server Error' });
     }
 };
 
-// ২. নতুন প্রোডাক্ট অ্যাড করা (সাইজ, স্টক, প্রাইস সহ)
+// ২. নতুন প্রোডাক্ট অ্যাড করা (Bulletproof Engine)
 export const addProduct = async (req, res) => {
     try {
-        const { name, category, price, sizes, stock, status } = req.body;
-        
+        // রিকোয়েস্ট বডি থেকে সব ডেটা নিয়ে সরাসরি ডেটাবেসে পুশ করা হচ্ছে
         const product = await Product.create({
-            user: req.user._id, // লগইন করা ক্লায়েন্টের আইডি
-            name, category, price, sizes, stock, status
+            user: req.user._id,
+            ...req.body
         });
-
+        
         res.status(201).json({ success: true, message: 'Product added', data: product });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Server Error' });
+        // 💥 ক্র্যাশ না করে সরাসরি এরর মেসেজ ফ্রন্টএন্ডে পাঠিয়ে দেবে
+        console.error("🔥 ADD PRODUCT ERROR:", error.message);
+        res.status(500).json({ success: false, error: error.message || 'Server Error on saving' });
     }
 };
 
-// ৩. প্রোডাক্ট এডিট/আপডেট করা (স্টক বা প্রাইস চেঞ্জ করার জন্য)
+// ৩. প্রোডাক্ট এডিট/আপডেট করা
 export const updateProduct = async (req, res) => {
     try {
         let product = await Product.findById(req.params.id);
         
-        if (!product) return res.status(404).json({ error: 'Product not found' });
+        if (!product) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
         
-        // অন্য ক্লায়েন্ট যেন হ্যাক করে আরেকজনের প্রোডাক্ট এডিট করতে না পারে
+        // অন্য কেউ যেন এডিট করতে না পারে তার সেফটি
         if (product.user.toString() !== req.user._id.toString()) {
             return res.status(401).json({ error: 'Not authorized' });
         }
 
-        product = await Product.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true });
+        product = await Product.findByIdAndUpdate(
+            req.params.id, 
+            { $set: req.body }, 
+            { new: true }
+        );
+        
         res.status(200).json({ success: true, data: product });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Server Error' });
+        res.status(500).json({ success: false, error: error.message || 'Server Error' });
     }
 };
 
@@ -49,7 +57,10 @@ export const updateProduct = async (req, res) => {
 export const deleteProduct = async (req, res) => {
     try {
         const product = await Product.findById(req.params.id);
-        if (!product) return res.status(404).json({ error: 'Product not found' });
+        
+        if (!product) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
 
         if (product.user.toString() !== req.user._id.toString()) {
             return res.status(401).json({ error: 'Not authorized' });
@@ -58,6 +69,6 @@ export const deleteProduct = async (req, res) => {
         await product.deleteOne();
         res.status(200).json({ success: true, message: 'Product deleted' });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Server Error' });
+        res.status(500).json({ success: false, error: error.message || 'Server Error' });
     }
 };
