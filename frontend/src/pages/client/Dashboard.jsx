@@ -1,28 +1,85 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import axios from 'axios';
 import { 
   DollarSign, 
   MessageCircle, 
   TrendingUp, 
-  ShoppingBag, 
   Bot, 
   Activity, 
   ArrowUpRight,
-  CheckCircle2
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const [clientData, setClientData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // ডামি স্ট্যাটিস্টিকস
+  const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
+
+  // ─── Backend থেকে ক্লায়েন্টের রিয়েল ডেটা ফেচ করা ───
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const config = { headers: { Authorization: `Bearer ${token}` } };
+        const response = await axios.get(`${API_URL}/client/dashboard`, config);
+        
+        if (response.data.success) {
+          setClientData(response.data.data);
+        }
+      } catch (err) {
+        console.error("Error fetching client data:", err);
+        setError('Failed to sync with Thirdwave servers.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (token) fetchDashboardData();
+  }, [API_URL, token]);
+
+  // ─── ডাইনামিক স্ট্যাটিস্টিকস (API থেকে পাওয়া ডেটা) ───
   const stats = [
-    { label: 'Total Revenue', value: '৳ 45,230', trend: '+12.5%', isPositive: true, icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/20' },
-    { label: 'AI Conversations', value: '1,204', trend: '+22.4%', isPositive: true, icon: MessageCircle, color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/20' },
-    { label: 'Conversion Rate', value: '8.4%', trend: '+1.2%', isPositive: true, icon: TrendingUp, color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/20' },
-    { label: 'Pending Orders', value: '42', trend: '-4.1%', isPositive: false, icon: ShoppingBag, color: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/20' }
+    { 
+        label: 'Monthly Bill (MRR)', 
+        value: `৳ ${clientData?.mrr || 0}`, 
+        trend: 'Paid', 
+        isPositive: true, 
+        icon: DollarSign, 
+        color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/20' 
+    },
+    { 
+        label: 'Current Plan', 
+        value: clientData?.plan || 'Basic', 
+        trend: 'Active', 
+        isPositive: true, 
+        icon: TrendingUp, 
+        color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/20' 
+    },
+    { 
+        label: 'Account Status', 
+        value: clientData?.status || 'Pending', 
+        trend: 'System', 
+        isPositive: clientData?.status === 'Active', 
+        icon: ShieldCheck, 
+        color: clientData?.status === 'Active' ? 'text-blue-400' : 'text-amber-400', 
+        bg: clientData?.status === 'Active' ? 'bg-blue-400/10' : 'bg-amber-400/10', 
+        border: clientData?.status === 'Active' ? 'border-blue-400/20' : 'border-amber-400/20' 
+    },
+    { 
+        label: 'AI Conversations', 
+        value: '1,204', // এটা পরে AI ইঞ্জিন বানালে ডাইনামিক করব
+        trend: '+22.4%', 
+        isPositive: true, 
+        icon: MessageCircle, 
+        color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/20' 
+    }
   ];
 
-  // ডামি লাইভ এআই এক্টিভিটি
+  // ডামি লাইভ এআই এক্টিভিটি (তোর অরিজিনাল ডিজাইন)
   const aiActivities = [
     { id: 1, text: 'AI closed a sale for Aurelian Premium Oxford Shirt.', time: '2 mins ago', type: 'sale' },
     { id: 2, text: 'AI answered a query about delivery charges in Dhaka.', time: '15 mins ago', type: 'query' },
@@ -30,16 +87,31 @@ const Dashboard = () => {
     { id: 4, text: 'AI handled an out-of-stock product inquiry smoothly.', time: '2 hours ago', type: 'query' },
   ];
 
+  if (loading) {
+    return (
+        <div className="flex flex-col items-center justify-center h-[60vh]">
+            <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
+            <p className="text-zinc-400 font-medium animate-pulse">Syncing your workspace...</p>
+        </div>
+    );
+  }
+
   return (
-    <div className="max-w-7xl mx-auto pb-10">
+    <div className="max-w-7xl mx-auto pb-10 animate-in fade-in duration-500">
       
       {/* ─── Header Section ─── */}
       <div className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-semibold text-white tracking-tight">
-          Welcome back, {user?.name?.split(' ')[0] || 'Boss'}! 👋
+          Welcome back, {clientData?.name?.split(' ')[0] || user?.name?.split(' ')[0] || 'Boss'}! 👋
         </h1>
         <p className="text-sm text-zinc-400 mt-2">Here is what's happening with your AI workforce today.</p>
       </div>
+
+      {error && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+              {error}
+          </div>
+      )}
 
       {/* ─── Stats Grid ─── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
@@ -53,7 +125,7 @@ const Dashboard = () => {
                 <stat.icon className={`w-5 h-5 ${stat.color}`} />
               </div>
               <span className={`flex items-center text-xs font-semibold px-2 py-1 rounded-full ${stat.isPositive ? 'text-emerald-400 bg-emerald-400/10' : 'text-red-400 bg-red-400/10'}`}>
-                {stat.trend} <ArrowUpRight className="w-3 h-3 ml-1" />
+                {stat.trend} {stat.trend.includes('%') && <ArrowUpRight className="w-3 h-3 ml-1" />}
               </span>
             </div>
             
@@ -81,7 +153,6 @@ const Dashboard = () => {
             </button>
           </div>
 
-          {/* Custom CSS Progress Bars (No Third Party Libs) */}
           <div className="space-y-6">
             <div>
               <div className="flex justify-between text-sm mb-2">
@@ -125,7 +196,6 @@ const Dashboard = () => {
           <div className="relative border-l border-zinc-800/80 ml-3 space-y-6">
             {aiActivities.map((activity) => (
               <div key={activity.id} className="relative pl-6">
-                {/* Indicator Dot */}
                 <div className="absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full bg-zinc-800 border-2 border-[#0A0A0A] ring-1 ring-zinc-700">
                   {activity.type === 'sale' && <div className="absolute inset-0 rounded-full bg-emerald-500 animate-pulse"></div>}
                 </div>
