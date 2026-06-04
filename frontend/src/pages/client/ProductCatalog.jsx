@@ -21,7 +21,7 @@ const ProductCatalog = () => {
   
   const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
 
-  // ─── Fetch Real Products ───
+  // ─── Fetch Products ───
   const fetchProducts = async () => {
     try {
       setLoading(true);
@@ -57,14 +57,13 @@ const ProductCatalog = () => {
       setFormData({ name: '', category: '', price: '', stock: '', sizes: [], status: 'Active' });
   };
 
-  // 💥 NEW FIX: Open Add Modal (সব ডেটা ফ্রেশ করে ওপেন করবে)
+  // 💥 FIX 1: Add Modal ওপেন হলে সব আইডি ও ডেটা মুছে ফ্রেশ হবে
   const openAddModal = () => {
       setEditingId(null);
       setFormData({ name: '', category: '', price: '', stock: '', sizes: [], status: 'Active' });
       setIsModalOpen(true);
   };
 
-  // ─── Open Edit Modal ───
   const openEditModal = (product) => {
       setEditingId(product._id);
       setFormData({
@@ -78,7 +77,6 @@ const ProductCatalog = () => {
       setIsModalOpen(true);
   };
 
-  // ─── Add or Update Product ───
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitLoading(true);
@@ -91,10 +89,8 @@ const ProductCatalog = () => {
       };
 
       if (editingId) {
-          // Update API
           await axios.put(`${API_URL}/products/${editingId}`, payload, config);
       } else {
-          // Create API
           await axios.post(`${API_URL}/products`, payload, config);
       }
       
@@ -103,13 +99,12 @@ const ProductCatalog = () => {
     } catch (err) {
       console.error("Failed to save product", err);
       const errorMessage = err.response?.data?.error || err.message || "Unknown Error";
-      alert(`⚠️ Save Failed!\nReason: ${errorMessage}\n\nCheck if your backend is running.`);
+      alert(`⚠️ Save Failed!\nReason: ${errorMessage}`);
     } finally {
       setSubmitLoading(false);
     }
   };
 
-  // ─── Delete Product ───
   const handleDelete = async (id) => {
       if(!window.confirm("Are you sure you want to delete this product?")) return;
       try {
@@ -129,7 +124,7 @@ const ProductCatalog = () => {
   return (
     <div className="max-w-7xl mx-auto pb-10 animate-in fade-in duration-500">
       
-      {/* ─── ADD/EDIT Product Modal ─── */}
+      {/* ─── ADD/EDIT Modal ─── */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
             <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl my-8">
@@ -139,31 +134,36 @@ const ProductCatalog = () => {
                     </h2>
                     <button onClick={closeModal} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
                 </div>
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <form onSubmit={handleSubmit} className="p-6 space-y-5">
                     <div>
                         <label className="text-sm text-zinc-400 block mb-1.5">Product Name</label>
-                        <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="e.g. Premium Oxford Shirt" />
+                        <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="e.g. Aurelian Premium Panjabi" />
                     </div>
                     
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="text-sm text-zinc-400 block mb-1.5">Category</label>
+                            {/* 💥 FIX 2: Pure Text Input - তুই যা খুশি টাইপ করতে পারবি */}
                             <input 
                                 required 
                                 type="text" 
-                                list="category-options"
                                 value={formData.category} 
                                 onChange={e => setFormData({...formData, category: e.target.value})} 
                                 className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" 
-                                placeholder="Type or select..."
+                                placeholder="Type Category..."
                             />
-                            <datalist id="category-options">
-                                <option value="Panjabi" />
-                                <option value="Shirt" />
-                                <option value="Pant" />
-                                <option value="T-Shirt" />
-                                <option value="Accessories" />
-                            </datalist>
+                            {/* শর্টকাট বাটন */}
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                                {['Panjabi', 'Shirt', 'Pant', 'T-Shirt'].map(cat => (
+                                    <button 
+                                        key={cat} type="button" 
+                                        onClick={() => setFormData({...formData, category: cat})} 
+                                        className="text-[10px] px-2 py-1 bg-zinc-800/50 border border-zinc-700 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors"
+                                    >
+                                        {cat}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                         <div>
                             <label className="text-sm text-zinc-400 block mb-1.5">Price (৳)</label>
@@ -190,11 +190,11 @@ const ProductCatalog = () => {
                     <div>
                         <label className="text-sm text-zinc-400 block mb-2">Available Sizes</label>
                         <div className="flex gap-2 flex-wrap">
-                            {['S', 'M', 'L', 'XL', 'XXL', '38', '40', '42', '44'].map(size => (
+                            {['S', 'M', 'L', 'XL', 'XXL', '38', '40', '42', '44', '46'].map(size => (
                                 <button 
                                     key={size} type="button" 
                                     onClick={() => handleSizeToggle(size)}
-                                    className={`w-10 h-10 rounded-lg text-sm font-semibold transition-all ${
+                                    className={`w-9 h-9 rounded-lg text-xs font-semibold transition-all ${
                                         formData.sizes.includes(size) 
                                         ? 'bg-indigo-600 text-white border border-indigo-500' 
                                         : 'bg-[#111111] text-zinc-400 border border-zinc-800 hover:border-zinc-600'
@@ -206,8 +206,8 @@ const ProductCatalog = () => {
                         </div>
                     </div>
 
-                    <button type="submit" disabled={submitLoading} className="w-full mt-6 flex items-center justify-center gap-2 py-3 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-70">
-                        {submitLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingId ? 'Update Product' : 'Save Product')}
+                    <button type="submit" disabled={submitLoading} className="w-full mt-2 flex items-center justify-center gap-2 py-3 bg-white text-black text-sm font-bold rounded-lg hover:bg-zinc-200 transition-all active:scale-[0.98] disabled:opacity-70">
+                        {submitLoading ? <Loader2 className="w-4 h-4 animate-spin text-black" /> : (editingId ? 'Update Product' : 'Save Product')}
                     </button>
                 </form>
             </div>
@@ -222,8 +222,8 @@ const ProductCatalog = () => {
           </h1>
           <p className="text-sm text-zinc-400 mt-1">Manage your products and train your AI on inventory.</p>
         </div>
-        {/* 💥 FIX: Add Product Button now properly resets state */}
-        <button onClick={openAddModal} className="flex items-center gap-2 px-5 py-2.5 bg-white text-black text-sm font-semibold rounded-lg hover:bg-zinc-200 transition-all active:scale-[0.98]">
+        {/* 💥 FIX: Add Product Button now properly opens fresh modal */}
+        <button onClick={openAddModal} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-all active:scale-[0.98]">
           <Plus className="w-4 h-4" /> Add Product
         </button>
       </div>
