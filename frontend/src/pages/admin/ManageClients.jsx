@@ -16,18 +16,20 @@ const ManageClients = () => {
     const [addLoading, setAddLoading] = useState(false);
     const [addError, setAddError] = useState('');
 
-    // ─── Edit Client States ───
+    // Edit Client States
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editFormData, setEditFormData] = useState({ id: '', name: '', company: '', plan: '', mrr: '', status: '' });
+    const [editFormData, setEditFormData] = useState({ id: '', name: '', company: '', plan: 'Basic', mrr: '', status: 'Active' });
     const [editLoading, setEditLoading] = useState(false);
 
     const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
 
+    // ─── ১. ক্যাশ-বাস্টার দিয়ে ডেটা ফেচ করা (যাতে Vercel পুরানো ডেটা না দেখায়) ───
     const fetchClients = async () => {
         try {
             setLoading(true);
             const config = { headers: { Authorization: `Bearer ${token}` } };
-            const response = await axios.get(`${API_URL}/admin/clients`, config);
+            // URL এর শেষে ?t= টাইমস্ট্যাম্প দিয়ে ক্যাশ ধ্বংস করা হয়েছে
+            const response = await axios.get(`${API_URL}/admin/clients?t=${new Date().getTime()}`, config);
             if (response.data.success) setClients(response.data.data);
         } catch (error) {
             console.error("Error fetching clients:", error);
@@ -51,7 +53,7 @@ const ManageClients = () => {
             
             setAddFormData({ name: '', email: '', password: '', company: '', plan: 'Basic', mrr: '', status: 'Active' });
             setIsAddModalOpen(false);
-            fetchClients();
+            await fetchClients(); // ডেটা রিফ্রেশ
         } catch (err) {
             setAddError(err.response?.data?.error || 'Failed to add client');
         } finally {
@@ -59,7 +61,7 @@ const ManageClients = () => {
         }
     };
 
-    // ─── Open Edit Modal ───
+    // Open Edit Modal
     const openEditModal = (client) => {
         setEditFormData({
             id: client._id,
@@ -72,7 +74,7 @@ const ManageClients = () => {
         setIsEditModalOpen(true);
     };
 
-    // ─── Edit Submit ───
+    // ─── ২. এডিট করার লজিক (আপডেট হওয়ার পর ফোর্স রিফ্রেশ) ───
     const handleEditClient = async (e) => {
         e.preventDefault();
         setEditLoading(true);
@@ -85,7 +87,7 @@ const ManageClients = () => {
             }, config);
             
             setIsEditModalOpen(false);
-            fetchClients(); // রিফ্রেশ টেবিল
+            await fetchClients(); // 💥 আপডেট হওয়ার সাথে সাথে নতুন ডেটা জোর করে আনবে
         } catch (err) {
             console.error("Update failed", err);
         } finally {
@@ -290,7 +292,6 @@ const ManageClients = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            {/* ─── NEW: Edit Button ─── */}
                                             <button 
                                                 onClick={() => openEditModal(client)} 
                                                 className="p-2 text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all"
