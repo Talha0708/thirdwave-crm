@@ -10,18 +10,19 @@ export const getProducts = async (req, res) => {
     }
 };
 
-// ২. নতুন প্রোডাক্ট অ্যাড করা (Bulletproof Engine)
+// ২. নতুন প্রোডাক্ট অ্যাড করা (MongoDB E11000 Error Fix)
 export const addProduct = async (req, res) => {
     try {
-        // রিকোয়েস্ট বডি থেকে সব ডেটা নিয়ে সরাসরি ডেটাবেসে পুশ করা হচ্ছে
         const product = await Product.create({
             user: req.user._id,
-            ...req.body
+            ...req.body,
+            // 💥 MongoDB-এর ওই Index Error (E11000) বাইপাস করার জন্য অটো জেনারেটর:
+            shopId: req.user._id, // ইউজারের আইডিকেই শপ আইডি হিসেবে পাঠিয়ে দিচ্ছি
+            code: `PRD-${Date.now()}-${Math.floor(Math.random() * 1000)}` // রেন্ডম ইউনিক কোড
         });
         
         res.status(201).json({ success: true, message: 'Product added', data: product });
     } catch (error) {
-        // 💥 ক্র্যাশ না করে সরাসরি এরর মেসেজ ফ্রন্টএন্ডে পাঠিয়ে দেবে
         console.error("🔥 ADD PRODUCT ERROR:", error.message);
         res.status(500).json({ success: false, error: error.message || 'Server Error on saving' });
     }
