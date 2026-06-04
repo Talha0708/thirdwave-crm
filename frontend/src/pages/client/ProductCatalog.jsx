@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
-import { PackageSearch, Plus, Search, Filter, Edit, Trash2, CheckCircle2, Loader2, X } from 'lucide-react';
+import { PackageSearch, Plus, Search, Filter, Edit, Trash2, CheckCircle2, XCircle, Loader2, X } from 'lucide-react';
 
 const ProductCatalog = () => {
   const { token } = useAuth();
@@ -57,6 +57,7 @@ const ProductCatalog = () => {
       setFormData({ name: '', category: '', price: '', stock: '', sizes: [], status: 'Active' });
   };
 
+  // 💥 Add Modal ওপেন হলে সব আইডি ও ডেটা মুছে ফ্রেশ হবে
   const openAddModal = () => {
       setEditingId(null);
       setFormData({ name: '', category: '', price: '', stock: '', sizes: [], status: 'Active' });
@@ -120,7 +121,7 @@ const ProductCatalog = () => {
     (product.category && product.category.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // প্রো-লেভেল স্ট্যাটাস লজিক
+  // 💥 PRO-LEVEL STATUS LOGIC (এখানেই আসল ম্যাজিক)
   const getStatusDisplay = (product) => {
     if (product.status === 'Draft') return { text: 'Draft', color: 'text-zinc-500' };
     if (product.status === 'Out of Stock' || product.stock <= 0) return { text: 'Out of Stock', color: 'text-red-500' };
@@ -191,6 +192,7 @@ const ProductCatalog = () => {
                         </div>
                     </div>
 
+                    {/* Available Sizes Selection */}
                     <div>
                         <label className="text-sm text-zinc-400 block mb-2">Available Sizes</label>
                         <div className="flex gap-2 flex-wrap">
@@ -258,6 +260,8 @@ const ProductCatalog = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {filteredProducts.length > 0 ? (
                 filteredProducts.map((product) => {
+                
+                // 💥 এখানে স্ট্যাটাস ক্যালকুলেট হচ্ছে
                 const statusDisplay = getStatusDisplay(product);
 
                 return (
@@ -278,6 +282,8 @@ const ProductCatalog = () => {
                     <div className="p-5 flex-1 flex flex-col">
                     <div className="flex justify-between items-start mb-2">
                         <p className="text-xs font-mono text-zinc-500">{product.category || 'Product'}</p>
+                        
+                        {/* 💥 এখানে প্রো-লেভেলের ডাইনামিক স্ট্যাটাস বসানো হলো */}
                         <span className={`text-[10px] font-semibold uppercase tracking-wider ${statusDisplay.color}`}>
                             {statusDisplay.text}
                         </span>
