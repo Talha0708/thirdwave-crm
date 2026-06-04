@@ -20,7 +20,7 @@ export const getDashboardStats = async (req, res) => {
     }
 };
 
-// ─── NEW: অ্যাডমিন প্যানেল থেকে ক্লায়েন্ট অ্যাড করার ফাংশন ───
+// ─── অ্যাডমিন প্যানেল থেকে ক্লায়েন্ট অ্যাড করার ফাংশন ───
 export const addClient = async (req, res) => {
     try {
         const { name, email, password, company } = req.body;
@@ -36,6 +36,25 @@ export const addClient = async (req, res) => {
             user: { _id: user._id, name: user.name, email: user.email, company: user.company, role: user.role, createdAt: user.createdAt }
         });
     } catch (error) {
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// ─── NEW: সব ক্লায়েন্টদের লিস্ট পাওয়ার ফাংশন (Manage Clients পেজের জন্য) ───
+export const getAllClients = async (req, res) => {
+    try {
+        // ডেটাবেস থেকে শুধু ক্লায়েন্টদের (role: 'user') খুঁজে বের করবে
+        const clients = await User.find({ role: 'user' })
+                                  .select('-password') // পাসওয়ার্ড হাইড থাকবে
+                                  .sort({ createdAt: -1 }); // নতুনরা আগে আসবে
+
+        res.status(200).json({
+            success: true,
+            count: clients.length,
+            data: clients
+        });
+    } catch (error) {
+        console.error("Get All Clients Error:", error);
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };

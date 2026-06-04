@@ -1,158 +1,216 @@
-import React, { useState } from 'react';
-import { 
-  Users, 
-  UserPlus, 
-  Search, 
-  Filter, 
-  MoreVertical, 
-  Edit, 
-  Trash2, 
-  Mail, 
-  ExternalLink, 
-  ShieldAlert 
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import axios from 'axios';
+import { Search, Filter, Plus, UserPlus, Loader2, MoreHorizontal, X } from 'lucide-react';
 
 const ManageClients = () => {
-  // ডামি ক্লায়েন্ট ডেটা
-  const [clients] = useState([
-    { id: 'CLI-092', name: 'Aurelian Menswear', email: 'admin@aurelian.com', plan: 'Enterprise', status: 'Active', joined: '12 May, 2026', mrr: '৳ 15,000' },
-    { id: 'CLI-091', name: 'Urban Fit BD', email: 'contact@urbanfit.bd', plan: 'Pro', status: 'Active', joined: '08 May, 2026', mrr: '৳ 8,000' },
-    { id: 'CLI-090', name: 'Style Echo', email: 'hello@styleecho.com', plan: 'Basic', status: 'Onboarding', joined: '01 May, 2026', mrr: '৳ 4,000' },
-    { id: 'CLI-089', name: 'Luxe Attire', email: 'sales@luxeattire.com', plan: 'Pro', status: 'Suspended', joined: '15 Apr, 2026', mrr: '৳ 8,000' },
-    { id: 'CLI-088', name: 'Denim Core', email: 'info@denimcore.bd', plan: 'Enterprise', status: 'Active', joined: '10 Apr, 2026', mrr: '৳ 15,000' },
-  ]);
+    const { token } = useAuth();
+    
+    // States
+    const [clients, setClients] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    
+    // Modal States
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [formData, setFormData] = useState({ name: '', email: '', password: '', company: '' });
+    const [addLoading, setAddLoading] = useState(false);
+    const [error, setError] = useState('');
 
-  return (
-    <div className="max-w-7xl mx-auto pb-10">
-      
-      {/* ─── Header Section ─── */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-semibold text-white tracking-tight flex items-center gap-2">
-            <Users className="w-7 h-7 text-indigo-500" /> Manage Workspaces
-          </h1>
-          <p className="text-sm text-zinc-400 mt-1">Add, edit, or suspend client accounts across the CRM.</p>
-        </div>
-        <button className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-all active:scale-[0.98] shadow-lg shadow-indigo-900/20">
-          <UserPlus className="w-4 h-4" /> Add New Client
-        </button>
-      </div>
+    const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
 
-      {/* ─── Search & Filter Bar ─── */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-          <input 
-            type="text" 
-            placeholder="Search clients by name, ID or email..." 
-            className="w-full pl-10 pr-4 py-2.5 bg-[#0A0A0A] border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-colors"
-          />
-        </div>
-        <div className="flex items-center gap-3">
-          <select className="px-4 py-2.5 bg-[#0A0A0A] border border-zinc-800 text-zinc-300 text-sm rounded-xl focus:outline-none focus:border-zinc-600 appearance-none min-w-[120px]">
-            <option value="all">All Plans</option>
-            <option value="enterprise">Enterprise</option>
-            <option value="pro">Pro</option>
-            <option value="basic">Basic</option>
-          </select>
-          <button className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#0A0A0A] border border-zinc-800 text-zinc-400 hover:text-white rounded-xl transition-colors shrink-0">
-            <Filter className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+    // ─── Fetch All Clients from API ───
+    const fetchClients = async () => {
+        try {
+            setLoading(true);
+            const config = { headers: { Authorization: `Bearer ${token}` } };
+            const response = await axios.get(`${API_URL}/admin/clients`, config);
+            
+            if (response.data.success) {
+                setClients(response.data.data);
+            }
+        } catch (error) {
+            console.error("Error fetching clients:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-      {/* ─── Clients Table ─── */}
-      <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl overflow-hidden shadow-xl">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-zinc-400">
-            <thead className="bg-[#111111] text-zinc-500 font-medium border-b border-zinc-800">
-              <tr>
-                <th className="px-6 py-4">Workspace / Email</th>
-                <th className="px-6 py-4">Plan & MRR</th>
-                <th className="px-6 py-4">Joined Date</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800/50">
-              {clients.map((client) => (
-                <tr key={client.id} className="hover:bg-zinc-900/50 transition-colors group">
-                  
-                  {/* Client Info */}
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center font-bold text-white border border-zinc-700 shrink-0">
-                        {client.name.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="font-medium text-zinc-200">{client.name}</p>
-                        <div className="flex items-center gap-1.5 text-xs text-zinc-500 mt-0.5">
-                          <Mail className="w-3 h-3" /> {client.email}
+    useEffect(() => {
+        if (token) fetchClients();
+    }, [API_URL, token]);
+
+    // ─── Add Client Logic ───
+    const handleAddClient = async (e) => {
+        e.preventDefault();
+        setAddLoading(true);
+        setError('');
+        try {
+            const config = { headers: { Authorization: `Bearer ${token}` } };
+            await axios.post(`${API_URL}/admin/add-client`, formData, config);
+            
+            setFormData({ name: '', email: '', password: '', company: '' });
+            setIsModalOpen(false);
+            fetchClients(); // নতুন ক্লায়েন্ট অ্যাড হলে লিস্ট রিফ্রেশ হবে
+        } catch (err) {
+            setError(err.response?.data?.error || 'Failed to add client');
+        } finally {
+            setAddLoading(false);
+        }
+    };
+
+    // ─── Search Filter Logic ───
+    const filteredClients = clients.filter(client => 
+        client.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (client.company && client.company.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    return (
+        <div className="max-w-7xl mx-auto animate-in fade-in duration-500 relative">
+            
+            {/* ─── Add Client Modal ─── */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl w-full max-w-md shadow-2xl">
+                        <div className="flex justify-between items-center p-6 border-b border-zinc-800/50">
+                            <h2 className="text-xl font-semibold text-white">Add New Client</h2>
+                            <button onClick={() => setIsModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
                         </div>
-                      </div>
+                        <form onSubmit={handleAddClient} className="p-6 space-y-4">
+                            {error && <p className="text-red-400 text-sm bg-red-400/10 p-3 rounded-lg border border-red-400/20">{error}</p>}
+                            <div>
+                                <label className="text-sm text-zinc-400 block mb-1.5">Client / Owner Name</label>
+                                <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="e.g. Talha Belal" />
+                            </div>
+                            <div>
+                                <label className="text-sm text-zinc-400 block mb-1.5">Workspace (Company Name)</label>
+                                <input required type="text" value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="e.g. Aurelian" />
+                            </div>
+                            <div>
+                                <label className="text-sm text-zinc-400 block mb-1.5">Email Address</label>
+                                <input required type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="admin@domain.com" />
+                            </div>
+                            <div>
+                                <label className="text-sm text-zinc-400 block mb-1.5">Initial Password</label>
+                                <input required type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="••••••••" />
+                            </div>
+                            <button type="submit" disabled={addLoading} className="w-full mt-4 flex items-center justify-center gap-2 py-3 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-70">
+                                {addLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Account'}
+                            </button>
+                        </form>
                     </div>
-                  </td>
+                </div>
+            )}
 
-                  {/* Plan & MRR */}
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col gap-1">
-                      <span className="inline-flex w-max px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider bg-zinc-800 text-zinc-300 border border-zinc-700">
-                        {client.plan}
-                      </span>
-                      <span className="text-zinc-400 font-medium text-xs">{client.mrr} / mo</span>
+            {/* ─── Header ─── */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+                        <UserPlus className="w-6 h-6 text-indigo-400" />
                     </div>
-                  </td>
-
-                  {/* Date */}
-                  <td className="px-6 py-4 text-zinc-400">
-                    {client.joined}
-                  </td>
-
-                  {/* Status */}
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                      client.status === 'Active' ? 'text-emerald-400 bg-emerald-400/10 border border-emerald-400/20' : 
-                      client.status === 'Onboarding' ? 'text-amber-400 bg-amber-400/10 border border-amber-400/20' : 
-                      'text-red-400 bg-red-400/10 border border-red-400/20'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                        client.status === 'Active' ? 'bg-emerald-400' : 
-                        client.status === 'Onboarding' ? 'bg-amber-400' : 
-                        'bg-red-400'
-                      }`}></span>
-                      {client.status}
-                    </span>
-                  </td>
-
-                  {/* Actions */}
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                      <button title="Login as Client" className="p-1.5 text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 rounded-md transition-colors">
-                        <ExternalLink className="w-4 h-4" />
-                      </button>
-                      <button title="Edit Client" className="p-1.5 text-zinc-400 hover:text-white bg-zinc-900 rounded-md transition-colors">
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      {client.status !== 'Suspended' ? (
-                        <button title="Suspend Account" className="p-1.5 text-amber-500/70 hover:text-amber-500 bg-amber-950/30 rounded-md transition-colors">
-                          <ShieldAlert className="w-4 h-4" />
-                        </button>
-                      ) : (
-                        <button title="Delete Permanently" className="p-1.5 text-red-500/70 hover:text-red-500 bg-red-950/30 rounded-md transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
+                    <div>
+                        <h1 className="text-2xl font-bold text-white tracking-tight">Manage Workspaces</h1>
+                        <p className="text-sm text-zinc-400 mt-1">Add, edit, or suspend client accounts across the CRM.</p>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                </div>
+                <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-all active:scale-[0.98]">
+                    <Plus className="w-4 h-4" /> Add New Client
+                </button>
+            </div>
+
+            {/* ─── Filters & Search ─── */}
+            <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <input 
+                        type="text" 
+                        placeholder="Search clients by name, company or email..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full bg-[#0A0A0A] border border-zinc-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50 transition-colors"
+                    />
+                </div>
+                <button className="flex items-center gap-2 px-4 py-2.5 bg-[#0A0A0A] border border-zinc-800 text-zinc-300 text-sm font-medium rounded-lg hover:bg-zinc-900 transition-colors">
+                    All Plans
+                </button>
+                <button className="flex items-center justify-center p-2.5 bg-[#0A0A0A] border border-zinc-800 text-zinc-400 rounded-lg hover:bg-zinc-900 hover:text-white transition-colors">
+                    <Filter className="w-4 h-4" />
+                </button>
+            </div>
+
+            {/* ─── Clients Table ─── */}
+            <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-[#111111] text-zinc-500 font-medium text-xs uppercase tracking-wider border-b border-zinc-800">
+                            <tr>
+                                <th className="px-6 py-4">Workspace / Email</th>
+                                <th className="px-6 py-4">Plan & MRR</th>
+                                <th className="px-6 py-4">Joined Date</th>
+                                <th className="px-6 py-4">Status</th>
+                                <th className="px-6 py-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-800/50">
+                            {loading ? (
+                                <tr>
+                                    <td colSpan="5" className="px-6 py-12 text-center">
+                                        <Loader2 className="w-6 h-6 text-indigo-500 animate-spin mx-auto mb-3" />
+                                        <p className="text-zinc-500">Loading workspaces...</p>
+                                    </td>
+                                </tr>
+                            ) : filteredClients.length > 0 ? (
+                                filteredClients.map((client) => (
+                                    <tr key={client._id} className="hover:bg-zinc-900/30 transition-colors group">
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center font-bold text-white border border-zinc-700 uppercase shadow-sm">
+                                                    {(client.company || client.name).charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-zinc-200">{client.company || client.name}</p>
+                                                    <p className="text-xs text-zinc-500 mt-0.5">{client.email}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            {/* ডামি প্ল্যান (কারণ ডেটাবেসে এখনও plan ফিল্ড অ্যাড করিনি) */}
+                                            <div className="flex flex-col gap-1.5 items-start">
+                                                <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 text-[10px] font-bold tracking-wider uppercase border border-zinc-700">
+                                                    PRO
+                                                </span>
+                                                <span className="text-xs font-medium text-zinc-400">৳ 8,000 / mo</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-zinc-400 font-medium">
+                                            {new Date(client.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-emerald-400 bg-emerald-400/10 border border-emerald-400/20">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Active
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition-all">
+                                                <MoreHorizontal className="w-4 h-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan="5" className="px-6 py-12 text-center text-zinc-500">
+                                        No matching workspaces found.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-      </div>
-      
-    </div>
-  );
+    );
 };
 
 export default ManageClients;
