@@ -11,6 +11,7 @@ import productRoutes from './routes/productRoutes.js';
 import orderRoutes from './routes/orderRoutes.js'; // 💥 NEW: Order Route ইমপোর্ট করা হলো
 import aiConfigRoutes from './routes/aiConfigRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
+import webhookRoutes from './routes/webhookRoutes.js';
 
 // রুট ফোল্ডার থেকে .env রিড করার সেটআপ
 const __filename = fileURLToPath(import.meta.url);
@@ -34,6 +35,8 @@ app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes); // 💥 NEW: Order Route কানেক্ট করা হলো (এটাই 404 সলভ করবে!)
 app.use('/api/ai-config', aiConfigRoutes);
 app.use('/api/customers', customerRoutes); // 💥 NEW
+app.use('/api/webhook', webhookRoutes); // 💥 NEW: Facebook Webhook
+
 
 // বেসিক টেস্টিং রাউট
 app.get('/api', (req, res) => {
