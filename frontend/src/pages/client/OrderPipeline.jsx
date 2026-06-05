@@ -91,7 +91,9 @@ const OrderPipeline = () => {
       fetchOrders(); 
     } catch (err) {
       console.error("Failed to add order", err);
-      alert(`⚠️ Save Failed!`);
+      // 💥 Super Debugger: আসল এরর মেসেজ বের করবে
+      const errorMessage = err.response?.data?.error || err.message || "Unknown Error";
+      alert(`⚠️ Save Failed!\nReason: ${errorMessage}`);
     } finally {
       setSubmitLoading(false);
     }
@@ -160,7 +162,6 @@ const OrderPipeline = () => {
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
           
-          {/* 💥 প্রফেশনাল Add Order Button */}
           <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors">
             <Plus className="w-4 h-4" /> Create Order
           </button>
