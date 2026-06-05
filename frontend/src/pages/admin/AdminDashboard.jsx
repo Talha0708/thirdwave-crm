@@ -13,9 +13,9 @@ const AdminDashboard = () => {
   const [recentUsers, setRecentUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal States
+  // Modal States - 💥 NEW: plan state added
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', company: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', company: '', plan: 'basic' });
   const [addLoading, setAddLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -47,11 +47,19 @@ const AdminDashboard = () => {
       setError('');
       try {
           const config = { headers: { Authorization: `Bearer ${token}` } };
-          await axios.post(`${API_URL}/admin/add-client`, formData, config);
           
-          setFormData({ name: '', email: '', password: '', company: '' });
+          // 💥 NEW: প্ল্যান অনুযায়ী অটোমেটিক রেভিনিউ (MRR) সেট করা
+          let calculatedMrr = 500;
+          if (formData.plan === 'pro') calculatedMrr = 1200;
+          if (formData.plan === 'enterprise') calculatedMrr = 8000;
+
+          const payload = { ...formData, mrr: calculatedMrr };
+
+          await axios.post(`${API_URL}/admin/add-client`, payload, config);
+          
+          setFormData({ name: '', email: '', password: '', company: '', plan: 'basic' });
           setIsModalOpen(false);
-          fetchDashboardData(); // নতুন ক্লায়েন্ট অ্যাড হলে ড্যাশবোর্ড রিলোড করবে
+          fetchDashboardData(); // নতুন ক্লায়েন্ট অ্যাড হলে ড্যাশবোর্ড রিলোড করবে
       } catch (err) {
           setError(err.response?.data?.error || 'Failed to add client');
       } finally {
@@ -98,6 +106,21 @@ const AdminDashboard = () => {
                           <label className="text-sm text-zinc-400 block mb-1.5">Email Address</label>
                           <input required type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-colors" placeholder="client@brand.com" />
                       </div>
+                      
+                      {/* 💥 NEW: Subscription Plan Dropdown ─── */}
+                      <div>
+                          <label className="text-sm text-zinc-400 block mb-1.5">Subscription Plan</label>
+                          <select 
+                              value={formData.plan} 
+                              onChange={e => setFormData({...formData, plan: e.target.value})} 
+                              className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-colors appearance-none"
+                          >
+                              <option value="basic">Basic Plan (৳500 / 2.5K Msg)</option>
+                              <option value="pro">Pro Plan (৳1,200 / 6K Msg)</option>
+                              <option value="enterprise">Enterprise (৳8,000 / 40K Msg)</option>
+                          </select>
+                      </div>
+
                       <div>
                           <label className="text-sm text-zinc-400 block mb-1.5">Temporary Password</label>
                           <input required type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-colors" placeholder="••••••••" />
@@ -184,7 +207,7 @@ const AdminDashboard = () => {
                       </td>
                       <td className="px-6 py-4">
                         <span className="px-2.5 py-1 rounded-md bg-zinc-800 text-zinc-300 text-xs font-medium border border-zinc-700 capitalize">
-                          {client.role}
+                          {client.plan || 'Basic'} {/* 💥 Show Plan instead of Role */}
                         </span>
                       </td>
                       <td className="px-6 py-4 font-medium text-zinc-300">

@@ -9,26 +9,41 @@ const ManageClients = () => {
     const [clients, setClients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [fetchError, setFetchError] = useState(''); // 💥 NEW: Error Detector State
+    const [fetchError, setFetchError] = useState(''); 
     
     // Add Client States
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [addFormData, setAddFormData] = useState({ name: '', email: '', password: '', company: '', plan: 'Basic', mrr: '', status: 'Active' });
+    const [addFormData, setAddFormData] = useState({ name: '', email: '', password: '', company: '', plan: 'Basic', mrr: 500, status: 'Active' });
     const [addLoading, setAddLoading] = useState(false);
     const [addError, setAddError] = useState('');
 
     // Edit Client States
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editFormData, setEditFormData] = useState({ id: '', name: '', company: '', plan: 'Basic', mrr: '', status: 'Active' });
+    const [editFormData, setEditFormData] = useState({ id: '', name: '', company: '', plan: 'Basic', mrr: 500, status: 'Active' });
     const [editLoading, setEditLoading] = useState(false);
 
     const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
+
+    // 💥 NEW: Auto-calculate MRR based on selected Plan
+    const handlePlanChange = (e, isEdit = false) => {
+        const selectedPlan = e.target.value;
+        let calculatedMrr = 500;
+        
+        if (selectedPlan.toLowerCase() === 'pro') calculatedMrr = 1200;
+        if (selectedPlan.toLowerCase() === 'enterprise') calculatedMrr = 8000;
+
+        if (isEdit) {
+            setEditFormData({ ...editFormData, plan: selectedPlan, mrr: calculatedMrr });
+        } else {
+            setAddFormData({ ...addFormData, plan: selectedPlan, mrr: calculatedMrr });
+        }
+    };
 
     // ─── API Fetch Logic with Error Handling ───
     const fetchClients = async () => {
         try {
             setLoading(true);
-            setFetchError(''); // Reset previous errors
+            setFetchError(''); 
             const config = { headers: { Authorization: `Bearer ${token}` } };
             const response = await axios.get(`${API_URL}/admin/clients?t=${new Date().getTime()}`, config);
             
@@ -37,7 +52,6 @@ const ManageClients = () => {
             }
         } catch (error) {
             console.error("Fetch API Error:", error);
-            // 💥 স্ক্রিনে এরর দেখানোর ম্যাজিক
             setFetchError(error.response?.data?.error || error.message || "Failed to connect to database");
         } finally {
             setLoading(false);
@@ -57,7 +71,7 @@ const ManageClients = () => {
             const config = { headers: { Authorization: `Bearer ${token}` } };
             await axios.post(`${API_URL}/admin/add-client`, addFormData, config);
             
-            setAddFormData({ name: '', email: '', password: '', company: '', plan: 'Basic', mrr: '', status: 'Active' });
+            setAddFormData({ name: '', email: '', password: '', company: '', plan: 'Basic', mrr: 500, status: 'Active' });
             setIsAddModalOpen(false);
             await fetchClients();
         } catch (err) {
@@ -74,7 +88,7 @@ const ManageClients = () => {
             name: client.name,
             company: client.company,
             plan: client.plan || 'Basic',
-            mrr: client.mrr || 0,
+            mrr: client.mrr || 500,
             status: client.status || 'Active'
         });
         setIsEditModalOpen(true);
@@ -141,7 +155,8 @@ const ManageClients = () => {
                             <div className="grid grid-cols-3 gap-4 pt-2 border-t border-zinc-800/50">
                                 <div>
                                     <label className="text-sm text-zinc-400 block mb-1.5">Plan</label>
-                                    <select value={addFormData.plan} onChange={e => setAddFormData({...addFormData, plan: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50">
+                                    {/* 💥 NEW: handlePlanChange যুক্ত করা হয়েছে */}
+                                    <select value={addFormData.plan} onChange={(e) => handlePlanChange(e, false)} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50">
                                         <option value="Basic">Basic</option>
                                         <option value="Pro">Pro</option>
                                         <option value="Enterprise">Enterprise</option>
@@ -182,7 +197,8 @@ const ManageClients = () => {
                         <form onSubmit={handleEditClient} className="p-6 space-y-5">
                             <div>
                                 <label className="text-sm text-zinc-400 block mb-1.5">Subscription Plan</label>
-                                <select value={editFormData.plan} onChange={e => setEditFormData({...editFormData, plan: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500/50">
+                                {/* 💥 NEW: handlePlanChange যুক্ত করা হয়েছে */}
+                                <select value={editFormData.plan} onChange={(e) => handlePlanChange(e, true)} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500/50">
                                     <option value="Basic">Basic</option>
                                     <option value="Pro">Pro</option>
                                     <option value="Enterprise">Enterprise</option>
@@ -259,7 +275,7 @@ const ManageClients = () => {
                                         <p className="text-zinc-500">Loading workspaces...</p>
                                     </td>
                                 </tr>
-                            ) : fetchError ? ( // 💥 NEW: ERROR UI
+                            ) : fetchError ? (
                                 <tr>
                                     <td colSpan="5" className="px-6 py-12 text-center bg-red-950/10">
                                         <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
