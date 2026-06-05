@@ -39,6 +39,7 @@ const DashboardLayout = ({ allowedRole }) => {
   const clientLinks = [
     { name: 'Workspace', path: '/client/dashboard', icon: LayoutDashboard },
     { name: 'Order Pipeline', path: '/client/orders', icon: ShoppingBag },
+    { name: 'Customer Database', path: '/client/customers', icon: Users }, // 💥 NEW: Customer Database Button
     { name: 'Product Catalog', path: '/client/products', icon: PackageSearch },
     { name: 'AI Brain Setup', path: '/client/ai-setup', icon: Bot },
   ];
