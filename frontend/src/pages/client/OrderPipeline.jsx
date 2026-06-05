@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
-import { Clock, CheckCircle2, Truck, Package, GripVertical, MoreVertical, Search, Filter, Loader2, Plus } from 'lucide-react';
+import { Clock, CheckCircle2, Truck, Package, GripVertical, MoreVertical, Search, Filter, Loader2, Plus, X } from 'lucide-react';
 
 const OrderPipeline = () => {
   const { token } = useAuth();
@@ -9,9 +9,16 @@ const OrderPipeline = () => {
   const [loading, setLoading] = useState(true);
   const [draggedOrderId, setDraggedOrderId] = useState(null);
 
+  // ─── Modal States ───
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    customerName: '', customerPhone: '', customerAddress: '', productName: '', totalAmount: '', status: 'Pending'
+  });
+
   const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
 
-  // ─── 1. Fetch Real Orders from Database ───
+  // ─── 1. Fetch Real Orders ───
   const fetchOrders = async () => {
     try {
       setLoading(true);
@@ -31,7 +38,7 @@ const OrderPipeline = () => {
     if (token) fetchOrders();
   }, [token]);
 
-  // ─── 2. Native Drag & Drop Handlers (Optimistic UI) ───
+  // ─── 2. Drag & Drop Logic ───
   const handleDragStart = (e, id) => {
     setDraggedOrderId(id);
     e.dataTransfer.effectAllowed = 'move';
@@ -43,15 +50,12 @@ const OrderPipeline = () => {
     setDraggedOrderId(null);
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault(); // Drop allow করার জন্য মাস্ট
-  };
+  const handleDragOver = (e) => { e.preventDefault(); };
 
   const handleDrop = async (e, newStatus) => {
     e.preventDefault();
     if (!draggedOrderId) return;
 
-    // 💥 ম্যাজিক: Optimistic Update (আগে স্ক্রিনে চেঞ্জ হবে, তারপর ডেটাবেসে যাবে)
     const previousOrders = [...orders];
     setOrders((prev) => 
       prev.map((order) => 
@@ -61,35 +65,38 @@ const OrderPipeline = () => {
 
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      // ব্যাকএন্ডে স্ট্যাটাস আপডেট রিকোয়েস্ট
       await axios.put(`${API_URL}/orders/${draggedOrderId}`, { status: newStatus }, config);
     } catch (error) {
       console.error("Failed to update status", error);
       alert("⚠️ Server error! Couldn't move the order.");
-      setOrders(previousOrders); // ফেইল করলে আগের অবস্থায় ফেরত যাবে
+      setOrders(previousOrders);
     }
   };
 
-  // ─── 3. Test Order Generator (টেলস্টিং এর জন্য) ───
-  const handleAddTestOrder = async () => {
+  // ─── 3. Professional Add Order Form Submit ───
+  const handleAddOrder = async (e) => {
+    e.preventDefault();
+    setSubmitLoading(true);
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      const testOrder = {
-        customerName: "Aurelian VIP " + Math.floor(Math.random() * 100),
-        customerPhone: "01711-" + Math.floor(100000 + Math.random() * 900000),
-        customerAddress: "Dhaka, Bangladesh",
-        productName: "Premium Oxford Shirt",
-        totalAmount: 1090,
-        status: "Pending" // Capitalized to match backend enum
+      const payload = {
+          ...formData,
+          totalAmount: Number(formData.totalAmount)
       };
-      await axios.post(`${API_URL}/orders`, testOrder, config);
-      fetchOrders(); // নতুন ডেটা রিফ্রেশ করা
-    } catch (error) {
-      alert("Failed to add test order");
+
+      await axios.post(`${API_URL}/orders`, payload, config);
+      
+      setIsModalOpen(false);
+      setFormData({ customerName: '', customerPhone: '', customerAddress: '', productName: '', totalAmount: '', status: 'Pending' });
+      fetchOrders(); 
+    } catch (err) {
+      console.error("Failed to add order", err);
+      alert(`⚠️ Save Failed!`);
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
-  // ─── Column Configuration (Matching Backend Enum) ───
   const columns = [
     { id: 'Pending', title: 'Pending Orders', icon: Clock, color: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/20' },
     { id: 'Processing', title: 'Processing', icon: Package, color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/20' },
@@ -99,6 +106,52 @@ const OrderPipeline = () => {
 
   return (
     <div className="h-full flex flex-col animate-in fade-in duration-500">
+      
+      {/* ─── ADD ORDER MODAL ─── */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl my-8">
+                <div className="flex justify-between items-center p-6 border-b border-zinc-800/50 sticky top-0 bg-[#0A0A0A] rounded-t-2xl z-10">
+                    <h2 className="text-xl font-semibold text-white">Create New Order</h2>
+                    <button onClick={() => setIsModalOpen(false)} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
+                </div>
+                <form onSubmit={handleAddOrder} className="p-6 space-y-4">
+                    
+                    {/* Customer Details */}
+                    <div>
+                        <label className="text-sm text-zinc-400 block mb-1.5">Customer Name</label>
+                        <input required type="text" value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="e.g. Rakib Hasan" />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-sm text-zinc-400 block mb-1.5">Phone Number</label>
+                            <input required type="text" value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="017XXXXXXXX" />
+                        </div>
+                        <div>
+                            <label className="text-sm text-zinc-400 block mb-1.5">Total Amount (৳)</label>
+                            <input required type="number" value={formData.totalAmount} onChange={e => setFormData({...formData, totalAmount: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="1090" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-sm text-zinc-400 block mb-1.5">Delivery Address</label>
+                        <input required type="text" value={formData.customerAddress} onChange={e => setFormData({...formData, customerAddress: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="e.g. Dhanmondi 27, Dhaka" />
+                    </div>
+
+                    <div>
+                        <label className="text-sm text-zinc-400 block mb-1.5">Product Details</label>
+                        <input required type="text" value={formData.productName} onChange={e => setFormData({...formData, productName: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="e.g. Aurelian Premium Oxford Shirt (Size: M)" />
+                    </div>
+
+                    <button type="submit" disabled={submitLoading} className="w-full mt-4 flex items-center justify-center gap-2 py-3 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-70">
+                        {submitLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Order'}
+                    </button>
+                </form>
+            </div>
+        </div>
+      )}
+
       {/* ─── Header Section ─── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
@@ -106,9 +159,10 @@ const OrderPipeline = () => {
           <p className="text-sm text-zinc-400 mt-1">Manage and track customer orders via drag-and-drop.</p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
-          {/* 💥 টেস্টিং বাটন */}
-          <button onClick={handleAddTestOrder} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors">
-            <Plus className="w-4 h-4" /> Add Test Order
+          
+          {/* 💥 প্রফেশনাল Add Order Button */}
+          <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors">
+            <Plus className="w-4 h-4" /> Create Order
           </button>
 
           <div className="relative w-full sm:w-64">
@@ -169,7 +223,7 @@ const OrderPipeline = () => {
                         <div className="flex items-center gap-2">
                           <GripVertical className="w-4 h-4 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
                           <span className="text-[10px] font-mono text-zinc-400 bg-zinc-800/50 px-2 py-1 rounded border border-zinc-700">
-                            {order._id.slice(-6).toUpperCase()} {/* ID এর লাস্ট ৬ ডিজিট */}
+                            ORD-{order._id.slice(-5).toUpperCase()}
                           </span>
                         </div>
                         <button className="text-zinc-600 hover:text-zinc-300 transition-colors">
