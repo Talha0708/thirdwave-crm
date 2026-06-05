@@ -23,7 +23,8 @@ const aiConfigSchema = new mongoose.Schema({
         rpmLimit: { type: Number, default: 1 }, // ফ্রি ইউজারদের জন্য 1 RPM
         rpmUsed: { type: Number, default: 0 },
         lastMessageTimestamp: { type: Date, default: Date.now },
-        billingCycleReset: { type: Date, default: Date.now }
+        billingCycleReset: { type: Date, default: Date.now },
+        expiryDate: { type: Date } // 💥 NEW: 30 days validity tracker
     },
 
     integrations: {

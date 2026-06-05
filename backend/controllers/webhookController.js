@@ -55,26 +55,29 @@ export const receiveMessage = async (req, res) => {
                                 const now = new Date();
                                 const sub = config.subscription;
 
-                                // ১. মান্থলি লিমিট চেক
+                                // 💥 ১. মান্থলি এক্সপায়ারি ডেট (৩০ দিন) চেক
+                                if (sub.expiryDate && new Date(sub.expiryDate) < now) {
+                                    console.log(`❌ BLOCK: Subscription Expired (30 Days over) for Page: ${pageId}`);
+                                    return; // মেয়াদ শেষ, AI চুপ থাকবে
+                                }
+
+                                // ২. মান্থলি লিমিট চেক
                                 if (sub.monthlyUsed >= sub.monthlyLimit) {
                                     console.log(`❌ BLOCK: Monthly Limit (${sub.monthlyLimit}) Reached for Page: ${pageId}`);
-                                    // Optional: এখানে কাস্টমারকে একটা মেসেজ দেওয়া যায় যে "আমাদের সিস্টেম বিজি আছে, মানুষ রিপ্লাই দেবে।"
                                     return;
                                 }
 
-                                // ২. RPM (Requests Per Minute) চেক এবং রিসেট লজিক
+                                // ৩. RPM (Requests Per Minute) চেক এবং রিসেট লজিক
                                 const timeSinceLastMessage = now.getTime() - new Date(sub.lastMessageTimestamp).getTime();
                                 
                                 if (timeSinceLastMessage > 60000) {
-                                    // যদি ১ মিনিট পার হয়ে যায়, তাহলে RPM কাউন্টার ০ করে দাও
                                     sub.rpmUsed = 0;
                                 } else if (sub.rpmUsed >= sub.rpmLimit) {
-                                    // যদি ১ মিনিটের ভেতরে লিমিট ক্রস করে
                                     console.log(`⏳ THROTTLE: RPM Limit (${sub.rpmLimit}/min) Exceeded for Page: ${pageId}`);
                                     return; 
                                 }
 
-                                // ৩. লিমিট ঠিক আছে! এবার কাউন্টার আপডেট করে ডেটাবেসে সেভ করো
+                                // ৪. লিমিট ঠিক আছে! এবার কাউন্টার আপডেট করে ডেটাবেসে সেভ করো
                                 sub.monthlyUsed += 1;
                                 sub.rpmUsed += 1;
                                 sub.lastMessageTimestamp = now;

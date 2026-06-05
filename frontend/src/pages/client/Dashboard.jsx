@@ -44,50 +44,59 @@ const Dashboard = () => {
     if (token) fetchDashboardData();
   }, [API_URL, token]);
 
-  // সাবস্ক্রিপশন ক্যালকুলেশন
-  const sub = config?.subscription || { plan: 'free', monthlyUsed: 0, monthlyLimit: 50, rpmLimit: 1 };
+  // 💥 NEW: সাবস্ক্রিপশন, Remaining Msgs এবং Expiry Date ক্যালকুলেশন
+  const sub = config?.subscription || { plan: 'free', monthlyUsed: 0, monthlyLimit: 50, rpmLimit: 1, expiryDate: null };
   const percentage = Math.min((sub.monthlyUsed / sub.monthlyLimit) * 100, 100).toFixed(1);
-  const isNearLimit = percentage >= 80 && percentage < 100;
-  const isLimitReached = percentage >= 100;
+  const remainingMsgs = Math.max(0, sub.monthlyLimit - sub.monthlyUsed);
+  
+  // Days Left Calculation
+  const daysLeft = sub.expiryDate ? Math.ceil((new Date(sub.expiryDate) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
+  const isExpired = sub.expiryDate ? daysLeft <= 0 : false;
 
-  // ফেসবুক কানেক্টেড আছে কি না চেক করা
-  const isFbConnected = config?.integrations?.facebook?.isConnected;
+  const isNearLimit = percentage >= 80 && percentage < 100 && !isExpired;
+  const isLimitReached = percentage >= 100 || isExpired; // মেয়াদ শেষ হলেও Limit Reached দেখাবে
 
-  // ─── ডাইনামিক স্ট্যাটিস্টিকস ───
+  // ─── ডাইনামিক স্ট্যাটিস্টিকস (Updated for SaaS Billing) ───
   const stats = [
     { 
-        label: 'Monthly Limit', 
-        value: `${sub.monthlyLimit}`, 
-        trend: 'Messages', 
-        isPositive: true, 
+        label: 'Remaining Msgs', 
+        value: `${remainingMsgs}`, 
+        trend: 'Available', 
+        isPositive: remainingMsgs > 0, 
         icon: MessageCircle, 
-        color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/20' 
+        color: remainingMsgs > 0 ? 'text-emerald-400' : 'text-red-400', 
+        bg: remainingMsgs > 0 ? 'bg-emerald-400/10' : 'bg-red-400/10', 
+        border: remainingMsgs > 0 ? 'border-emerald-400/20' : 'border-red-400/20' 
     },
     { 
-        label: 'Current Plan', 
-        value: sub.plan.charAt(0).toUpperCase() + sub.plan.slice(1), 
-        trend: 'Active', 
-        isPositive: true, 
+        label: 'Plan Expiry', 
+        value: isExpired ? 'Expired' : `${daysLeft} Days`, 
+        trend: isExpired ? 'Renew Now' : 'Active', 
+        isPositive: !isExpired, 
         icon: TrendingUp, 
-        color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/20' 
+        color: isExpired ? 'text-red-400' : 'text-purple-400', 
+        bg: isExpired ? 'bg-red-400/10' : 'bg-purple-400/10', 
+        border: isExpired ? 'border-red-400/20' : 'border-purple-400/20' 
     },
     { 
-        label: 'Meta Connection', 
-        value: isFbConnected ? 'Linked' : 'Pending', 
-        trend: 'System', 
-        isPositive: isFbConnected, 
-        icon: ShieldCheck, 
-        color: isFbConnected ? 'text-blue-400' : 'text-amber-400', 
-        bg: isFbConnected ? 'bg-blue-400/10' : 'bg-amber-400/10', 
-        border: isFbConnected ? 'border-blue-400/20' : 'border-amber-400/20' 
-    },
-    { 
-        label: 'Speed (RPM)', 
-        value: `${sub.rpmLimit}/min`, 
-        trend: 'Max Limit', 
+        label: 'Speed Limit', 
+        value: `${sub.rpmLimit} RPM`, 
+        trend: 'Per Minute', 
         isPositive: true, 
         icon: Zap, 
-        color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/20' 
+        color: 'text-blue-400', 
+        bg: 'bg-blue-400/10', 
+        border: 'border-blue-400/20' 
+    },
+    { 
+        label: 'Total Limit', 
+        value: `${sub.monthlyLimit}`, 
+        trend: 'Messages/mo', 
+        isPositive: true, 
+        icon: Activity, 
+        color: 'text-emerald-400', 
+        bg: 'bg-emerald-400/10', 
+        border: 'border-emerald-400/20' 
     }
   ];
 
@@ -125,7 +134,7 @@ const Dashboard = () => {
           </div>
       )}
 
-      {/* 💥 NEW: Usage Analytics Card (Progress Bar) ─── */}
+      {/* 💥 Usage Analytics Card (Progress Bar) ─── */}
       <div className="bg-[#0A0A0A] border border-zinc-800 rounded-3xl p-6 sm:p-8 relative overflow-hidden mb-8 group hover:border-zinc-700 transition-colors">
         <div className={`absolute -top-32 -right-32 w-96 h-96 blur-[100px] opacity-20 rounded-full pointer-events-none transition-all duration-700 ${isLimitReached ? 'bg-red-500' : isNearLimit ? 'bg-yellow-500' : 'bg-emerald-500'}`}></div>
 
@@ -168,7 +177,9 @@ const Dashboard = () => {
             {isLimitReached ? (
               <>
                 <AlertTriangle className="w-5 h-5 text-red-500 animate-pulse" />
-                <p className="text-sm text-red-400 font-medium">Your limit is reached! AI auto-replies are currently paused.</p>
+                <p className="text-sm text-red-400 font-medium">
+                  {isExpired ? "Your subscription has expired! AI auto-replies are paused." : "Your limit is reached! AI auto-replies are currently paused."}
+                </p>
               </>
             ) : isNearLimit ? (
               <>
@@ -185,7 +196,7 @@ const Dashboard = () => {
 
           {(isNearLimit || isLimitReached) && (
             <button className="px-6 py-2.5 bg-white text-black text-sm font-bold rounded-lg hover:bg-zinc-200 transition-all active:scale-95 shadow-lg whitespace-nowrap">
-              Upgrade Limits
+              Renew Plan
             </button>
           )}
         </div>
