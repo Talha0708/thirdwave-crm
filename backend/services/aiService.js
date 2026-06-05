@@ -10,9 +10,9 @@ export const generateAIResponse = async (customerMessage, systemPrompt, products
 
         // Gemini ইনিশিয়ালাইজ করা (gemini-1.5-flash সবচেয়ে ফাস্ট এবং লেটেস্ট)
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
+        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" }) 
+        // 💥 AI-এর জন্য মাস্টার প্রম্পট (Instruction) রেডি কর
 
-        // 💥 AI-এর জন্য মাস্টার প্রম্পট (Instruction) রেডি করা
         let fullPrompt = `${systemPrompt}\n\n`;
 
         // যদি ডেটাবেসে প্রোডাক্ট থাকে, তবে সেগুলো AI-কে জানিয়ে দেওয়া
