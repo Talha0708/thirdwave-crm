@@ -1,27 +1,65 @@
-import React, { useState } from 'react';
-// ✅ Facebook এর বদলে MessageCircle ইম্পোর্ট করা হলো
-import { Bot, Save, MessageSquare, Sliders, Webhook, Zap, MessageCircle, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { useAuth } from '../../context/AuthContext';
+import { Bot, Save, MessageSquare, Sliders, Webhook, Zap, MessageCircle, CheckCircle2, Loader2 } from 'lucide-react';
 
 const AISetup = () => {
+  const { token } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [aiConfig, setAiConfig] = useState({
-    systemPrompt: "You are an expert sales assistant for THIRDWAVE-CRM. Always be polite, professional, and try to close the sale. Ask for the customer's phone number before confirming an order.",
+    systemPrompt: "",
     autoReply: true,
     tone: 'professional',
     delay: '0'
   });
 
-  const handleSave = () => {
+  const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
+
+  // ─── ১. ডেটাবেস থেকে রিয়েল ডেটা আনা ───
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const config = { headers: { Authorization: `Bearer ${token}` } };
+        const { data } = await axios.get(`${API_URL}/ai-config`, config);
+        if (data.success) {
+          setAiConfig(data.data);
+        }
+      } catch (error) {
+        console.error("Error fetching AI config", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (token) fetchConfig();
+  }, [token]);
+
+  // ─── ২. ডেটাবেসে রিয়েল ডেটা সেভ করা ───
+  const handleSave = async () => {
     setSaving(true);
-    // Fake API Call delay
-    setTimeout(() => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.put(`${API_URL}/ai-config`, aiConfig, config);
+      alert('✅ AI Brain Configuration Saved Successfully!');
+    } catch (error) {
+      console.error("Error saving AI config", error);
+      alert('⚠️ Failed to save configuration.');
+    } finally {
       setSaving(false);
-    }, 1500);
+    }
   };
 
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[70vh]">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-3" />
+        <p className="text-zinc-500 text-sm">Loading AI Brain...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-5xl mx-auto pb-10">
-      
+    <div className="max-w-5xl mx-auto pb-10 animate-in fade-in duration-500">
       {/* ─── Header ─── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
@@ -41,10 +79,8 @@ const AISetup = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
         {/* ─── Main Configuration (Left Side - 2 Cols) ─── */}
         <div className="lg:col-span-2 space-y-6">
-          
           {/* AI Persona & System Prompt */}
           <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl p-6">
             <div className="flex items-center gap-2 mb-4">
@@ -136,7 +172,6 @@ const AISetup = () => {
                 </div>
                 <div className="flex items-center gap-3 mb-2">
                   <div className="p-2 bg-blue-600/10 text-blue-500 rounded-lg">
-                    {/* ✅ এখানে MessageCircle ব্যবহার করা হলো */}
                     <MessageCircle className="w-5 h-5" />
                   </div>
                   <h3 className="text-sm font-semibold text-white">Meta Webhook</h3>

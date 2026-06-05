@@ -9,6 +9,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import clientRoutes from './routes/clientRoutes.js'; 
 import productRoutes from './routes/productRoutes.js'; 
 import orderRoutes from './routes/orderRoutes.js'; // 💥 NEW: Order Route ইমপোর্ট করা হলো
+import aiConfigRoutes from './routes/aiConfigRoutes.js';
 
 // রুট ফোল্ডার থেকে .env রিড করার সেটআপ
 const __filename = fileURLToPath(import.meta.url);
@@ -30,6 +31,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/client', clientRoutes); 
 app.use('/api/products', productRoutes); 
 app.use('/api/orders', orderRoutes); // 💥 NEW: Order Route কানেক্ট করা হলো (এটাই 404 সলভ করবে!)
+app.use('/api/ai-config', aiConfigRoutes);
 
 // বেসিক টেস্টিং রাউট
 app.get('/api', (req, res) => {
