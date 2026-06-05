@@ -6,8 +6,9 @@ import { fileURLToPath } from 'url';
 import connectDB from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
-import clientRoutes from './routes/clientRoutes.js'; // ✅ নতুন ক্লায়েন্ট রাউট ইমপোর্ট করা হলো
-import productRoutes from './routes/productRoutes.js'; // 👈 NEW
+import clientRoutes from './routes/clientRoutes.js'; 
+import productRoutes from './routes/productRoutes.js'; 
+import orderRoutes from './routes/orderRoutes.js'; // 💥 NEW: Order Route ইমপোর্ট করা হলো
 
 // রুট ফোল্ডার থেকে .env রিড করার সেটআপ
 const __filename = fileURLToPath(import.meta.url);
@@ -26,8 +27,9 @@ app.use(express.json());
 // API রাউটস
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/client', clientRoutes); // ✅ ক্লায়েন্ট রাউট কানেক্ট করা হলো
-app.use('/api/products', productRoutes); // 👈 NEW
+app.use('/api/client', clientRoutes); 
+app.use('/api/products', productRoutes); 
+app.use('/api/orders', orderRoutes); // 💥 NEW: Order Route কানেক্ট করা হলো (এটাই 404 সলভ করবে!)
 
 // বেসিক টেস্টিং রাউট
 app.get('/api', (req, res) => {
