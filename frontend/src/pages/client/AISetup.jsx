@@ -1,29 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
-import { Bot, Save, MessageSquare, Sliders, Webhook, Zap, MessageCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { 
+  Bot, Save, MessageSquare, Sliders, Webhook, Zap, 
+  MessageCircle, CheckCircle2, Loader2, Phone, Key, X 
+} from 'lucide-react';
 
 const AISetup = () => {
   const { token } = useAuth();
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  // ─── Main Config State ───
   const [aiConfig, setAiConfig] = useState({
     systemPrompt: "",
     autoReply: true,
     tone: 'professional',
-    delay: '0'
+    delay: '0',
+    integrations: {
+      facebook: { isConnected: false, connectionMethod: 'none', pageId: '', pageName: '', accessToken: '' },
+      whatsapp: { isConnected: false, connectionMethod: 'none', phoneNumberId: '', accessToken: '' }
+    }
   });
+
+  // ─── Modal States ───
+  const [activeModal, setActiveModal] = useState(null); // 'facebook' or 'whatsapp' or null
+  const [modalTab, setModalTab] = useState('auto'); // 'auto' or 'manual'
+  const [manualFormData, setManualFormData] = useState({ id: '', name: '', token: '' });
+  const [integrationSaving, setIntegrationSaving] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
 
-  // ─── ১. ডেটাবেস থেকে রিয়েল ডেটা আনা ───
+  // ─── 1. Fetch Config ───
   useEffect(() => {
     const fetchConfig = async () => {
       try {
         const config = { headers: { Authorization: `Bearer ${token}` } };
         const { data } = await axios.get(`${API_URL}/ai-config`, config);
-        if (data.success) {
-          setAiConfig(data.data);
+        if (data.success && data.data) {
+          // Merge fetched data with default structure to prevent undefined errors
+          setAiConfig(prev => ({
+            ...prev,
+            ...data.data,
+            integrations: {
+              ...prev.integrations,
+              ...(data.data.integrations || {})
+            }
+          }));
         }
       } catch (error) {
         console.error("Error fetching AI config", error);
@@ -34,19 +57,68 @@ const AISetup = () => {
     if (token) fetchConfig();
   }, [token]);
 
-  // ─── ২. ডেটাবেসে রিয়েল ডেটা সেভ করা ───
+  // ─── 2. Save General Config ───
   const handleSave = async () => {
     setSaving(true);
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
       await axios.put(`${API_URL}/ai-config`, aiConfig, config);
-      alert('✅ AI Brain Configuration Saved Successfully!');
+      alert('✅ AI Brain Configuration Saved!');
     } catch (error) {
       console.error("Error saving AI config", error);
       alert('⚠️ Failed to save configuration.');
     } finally {
       setSaving(false);
     }
+  };
+
+  // ─── 3. Save Integration (Manual) ───
+  const handleIntegrationSave = async (e) => {
+    e.preventDefault();
+    setIntegrationSaving(true);
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      
+      const payloadData = activeModal === 'facebook' 
+        ? { isConnected: true, connectionMethod: 'manual', pageId: manualFormData.id, pageName: manualFormData.name, accessToken: manualFormData.token }
+        : { isConnected: true, connectionMethod: 'manual', phoneNumberId: manualFormData.id, accessToken: manualFormData.token };
+
+      const payload = {
+        platform: activeModal,
+        data: payloadData
+      };
+
+      const { data } = await axios.post(`${API_URL}/ai-config/integration`, payload, config);
+      
+      if (data.success) {
+        setAiConfig(prev => ({
+          ...prev,
+          integrations: {
+            ...prev.integrations,
+            [activeModal]: payloadData
+          }
+        }));
+        setActiveModal(null);
+        setManualFormData({ id: '', name: '', token: '' });
+      }
+    } catch (error) {
+      console.error("Integration Save Error:", error);
+      alert(`⚠️ Failed to connect ${activeModal}`);
+    } finally {
+      setIntegrationSaving(false);
+    }
+  };
+
+  // Open Modal Handler
+  const openIntegrationModal = (platform) => {
+    setActiveModal(platform);
+    setModalTab('auto');
+    const currentData = aiConfig.integrations[platform];
+    setManualFormData({
+      id: platform === 'facebook' ? currentData.pageId : currentData.phoneNumberId,
+      name: currentData.pageName || '',
+      token: currentData.accessToken || ''
+    });
   };
 
   if (loading) {
@@ -59,42 +131,107 @@ const AISetup = () => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto pb-10 animate-in fade-in duration-500">
+    <div className="max-w-5xl mx-auto pb-10 animate-in fade-in duration-500 relative">
+      
+      {/* ─── INTEGRATION MODAL (Facebook & WhatsApp) ─── */}
+      {activeModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-5 border-b border-zinc-800 bg-[#0A0A0A]">
+              <div className="flex items-center gap-2">
+                {activeModal === 'facebook' ? <MessageCircle className="w-5 h-5 text-blue-500" /> : <Phone className="w-5 h-5 text-emerald-500" />}
+                <h2 className="text-lg font-semibold text-white capitalize">Connect {activeModal}</h2>
+              </div>
+              <button onClick={() => setActiveModal(null)} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-zinc-800 bg-[#111111]">
+              <button onClick={() => setModalTab('auto')} className={`flex-1 py-3 text-sm font-medium transition-colors ${modalTab === 'auto' ? 'text-white border-b-2 border-blue-500 bg-blue-500/5' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                Auto Login (OAuth)
+              </button>
+              <button onClick={() => setModalTab('manual')} className={`flex-1 py-3 text-sm font-medium transition-colors ${modalTab === 'manual' ? 'text-white border-b-2 border-blue-500 bg-blue-500/5' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                Manual Setup
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            <div className="p-6">
+              {modalTab === 'auto' ? (
+                <div className="text-center py-6">
+                  <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${activeModal === 'facebook' ? 'bg-blue-500/10 text-blue-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                    <Key className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-white font-medium mb-2">One-Click Connection</h3>
+                  <p className="text-sm text-zinc-400 mb-6">Securely connect your {activeModal} account using official API authorization.</p>
+                  <button className={`w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.98] ${activeModal === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
+                    Continue with {activeModal.charAt(0).toUpperCase() + activeModal.slice(1)}
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleIntegrationSave} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-medium text-zinc-400 block mb-1.5 uppercase tracking-wider">
+                      {activeModal === 'facebook' ? 'Page ID' : 'Phone Number ID'}
+                    </label>
+                    <input required type="text" value={manualFormData.id} onChange={e => setManualFormData({...manualFormData, id: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50" placeholder={`Enter your ${activeModal === 'facebook' ? 'Page ID' : 'Number ID'}...`} />
+                  </div>
+                  
+                  {activeModal === 'facebook' && (
+                    <div>
+                      <label className="text-xs font-medium text-zinc-400 block mb-1.5 uppercase tracking-wider">Page Name (Optional)</label>
+                      <input type="text" value={manualFormData.name} onChange={e => setManualFormData({...manualFormData, name: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50" placeholder="e.g. Aurelian Official" />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-xs font-medium text-zinc-400 block mb-1.5 uppercase tracking-wider">Permanent Access Token</label>
+                    <textarea required rows={3} value={manualFormData.token} onChange={e => setManualFormData({...manualFormData, token: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50 custom-scrollbar" placeholder="Paste your long-lived access token here..." />
+                  </div>
+
+                  <button type="submit" disabled={integrationSaving} className="w-full mt-2 py-3 bg-white text-black text-sm font-semibold rounded-lg hover:bg-zinc-200 transition-all active:scale-[0.98] disabled:opacity-70 flex items-center justify-center gap-2">
+                    {integrationSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Save Manual Connection
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── Header ─── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-semibold text-white tracking-tight flex items-center gap-2">
             <Bot className="w-7 h-7 text-blue-500" /> AI Brain Setup
           </h1>
-          <p className="text-sm text-zinc-400 mt-1">Configure your AI assistant's personality, behavior, and integrations.</p>
+          <p className="text-sm text-zinc-400 mt-1">Configure your AI assistant's personality, behavior, and enterprise integrations.</p>
         </div>
-        <button 
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-6 py-2.5 bg-white text-black text-sm font-semibold rounded-lg hover:bg-zinc-200 transition-all active:scale-[0.98] disabled:opacity-70"
-        >
+        <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-6 py-2.5 bg-white text-black text-sm font-semibold rounded-lg hover:bg-zinc-200 transition-all active:scale-[0.98] disabled:opacity-70">
           {saving ? <Zap className="w-4 h-4 animate-pulse" /> : <Save className="w-4 h-4" />}
           {saving ? 'Saving Config...' : 'Save Changes'}
         </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
         {/* ─── Main Configuration (Left Side - 2 Cols) ─── */}
         <div className="lg:col-span-2 space-y-6">
+          
           {/* AI Persona & System Prompt */}
           <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl p-6">
             <div className="flex items-center gap-2 mb-4">
               <MessageSquare className="w-5 h-5 text-zinc-300" />
               <h2 className="text-lg font-medium text-white">System Prompt (Persona)</h2>
             </div>
-            <p className="text-sm text-zinc-500 mb-4">
-              This instruction dictates how the AI behaves. Be as specific as possible about your brand guidelines.
-            </p>
             <textarea
               rows={6}
               value={aiConfig.systemPrompt}
               onChange={(e) => setAiConfig({...aiConfig, systemPrompt: e.target.value})}
-              className="w-full px-4 py-3 bg-[#111111] border border-zinc-800 rounded-xl text-sm text-zinc-300 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all custom-scrollbar leading-relaxed"
+              className="w-full px-4 py-3 bg-[#111111] border border-zinc-800 rounded-xl text-sm text-zinc-300 focus:outline-none focus:border-blue-500/50 transition-all custom-scrollbar leading-relaxed"
               placeholder="Tell your AI how to behave..."
             />
           </div>
@@ -107,14 +244,9 @@ const AISetup = () => {
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {/* Tone Selection */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-zinc-400">Conversational Tone</label>
-                <select 
-                  value={aiConfig.tone}
-                  onChange={(e) => setAiConfig({...aiConfig, tone: e.target.value})}
-                  className="w-full px-4 py-3 bg-[#111111] border border-zinc-800 rounded-xl text-sm text-zinc-300 focus:outline-none focus:border-zinc-600 appearance-none"
-                >
+                <select value={aiConfig.tone} onChange={(e) => setAiConfig({...aiConfig, tone: e.target.value})} className="w-full px-4 py-3 bg-[#111111] border border-zinc-800 rounded-xl text-sm text-zinc-300 focus:outline-none focus:border-zinc-600 appearance-none">
                   <option value="professional">Professional & Corporate</option>
                   <option value="friendly">Friendly & Casual</option>
                   <option value="persuasive">Persuasive (Sales-focused)</option>
@@ -122,14 +254,9 @@ const AISetup = () => {
                 </select>
               </div>
 
-              {/* Reply Delay */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-zinc-400">Humanized Delay</label>
-                <select 
-                  value={aiConfig.delay}
-                  onChange={(e) => setAiConfig({...aiConfig, delay: e.target.value})}
-                  className="w-full px-4 py-3 bg-[#111111] border border-zinc-800 rounded-xl text-sm text-zinc-300 focus:outline-none focus:border-zinc-600 appearance-none"
-                >
+                <select value={aiConfig.delay} onChange={(e) => setAiConfig({...aiConfig, delay: e.target.value})} className="w-full px-4 py-3 bg-[#111111] border border-zinc-800 rounded-xl text-sm text-zinc-300 focus:outline-none focus:border-zinc-600 appearance-none">
                   <option value="0">Instant (No delay)</option>
                   <option value="2">2 Seconds (Fast typing)</option>
                   <option value="5">5 Seconds (Natural typing)</option>
@@ -137,19 +264,13 @@ const AISetup = () => {
               </div>
             </div>
 
-            {/* Auto Reply Toggle */}
             <div className="mt-6 pt-6 border-t border-zinc-800/50 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-medium text-white">Global Auto-Reply</h3>
                 <p className="text-xs text-zinc-500 mt-1">If disabled, the AI will only draft responses for you to approve.</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  className="sr-only peer" 
-                  checked={aiConfig.autoReply}
-                  onChange={() => setAiConfig({...aiConfig, autoReply: !aiConfig.autoReply})}
-                />
+                <input type="checkbox" className="sr-only peer" checked={aiConfig.autoReply} onChange={() => setAiConfig({...aiConfig, autoReply: !aiConfig.autoReply})} />
                 <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
               </label>
             </div>
@@ -161,39 +282,51 @@ const AISetup = () => {
           <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl p-6">
             <div className="flex items-center gap-2 mb-6">
               <Webhook className="w-5 h-5 text-zinc-300" />
-              <h2 className="text-lg font-medium text-white">Active Channels</h2>
+              <h2 className="text-lg font-medium text-white">Platform Integrations</h2>
             </div>
 
             <div className="space-y-4">
-              {/* Meta Integration */}
-              <div className="p-4 border border-zinc-800 bg-[#111111] rounded-xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-3">
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
-                </div>
+              
+              {/* 💥 Facebook / Meta Box */}
+              <div className={`p-4 border rounded-xl relative overflow-hidden transition-colors ${aiConfig.integrations.facebook.isConnected ? 'border-blue-500/30 bg-blue-500/5' : 'border-zinc-800 bg-[#111111]'}`}>
+                {aiConfig.integrations.facebook.isConnected && (
+                  <div className="absolute top-0 right-0 p-3"><CheckCircle2 className="w-5 h-5 text-blue-500" /></div>
+                )}
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-blue-600/10 text-blue-500 rounded-lg">
+                  <div className={`p-2 rounded-lg ${aiConfig.integrations.facebook.isConnected ? 'bg-blue-600/20 text-blue-400' : 'bg-zinc-800 text-zinc-400'}`}>
                     <MessageCircle className="w-5 h-5" />
                   </div>
-                  <h3 className="text-sm font-semibold text-white">Meta Webhook</h3>
+                  <h3 className="text-sm font-semibold text-white">Facebook & Instagram</h3>
                 </div>
-                <p className="text-xs text-zinc-500 mb-4">Connected to THIRDWAVE-CRM Official Page.</p>
-                <button className="text-xs font-medium text-zinc-400 hover:text-white transition-colors">
-                  Manage Connection &rarr;
+                <p className="text-xs text-zinc-500 mb-4 h-8">
+                  {aiConfig.integrations.facebook.isConnected 
+                    ? `Connected via ${aiConfig.integrations.facebook.connectionMethod} setup.` 
+                    : 'Connect your page to enable AI auto-replies.'}
+                </p>
+                <button onClick={() => openIntegrationModal('facebook')} className="text-xs font-medium text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-lg transition-colors w-full text-left flex justify-between items-center">
+                  {aiConfig.integrations.facebook.isConnected ? 'Manage Connection' : 'Setup Connection'} <span>&rarr;</span>
                 </button>
               </div>
 
-              {/* Custom API */}
-              <div className="p-4 border border-zinc-800 border-dashed bg-[#111111]/50 rounded-xl">
-                <div className="flex flex-col items-center justify-center text-center py-2">
-                  <div className="p-2 bg-zinc-800 text-zinc-400 rounded-lg mb-3">
-                    <Webhook className="w-5 h-5" />
+              {/* 💥 WhatsApp Box */}
+              <div className={`p-4 border rounded-xl relative overflow-hidden transition-colors ${aiConfig.integrations.whatsapp.isConnected ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-zinc-800 bg-[#111111]'}`}>
+                {aiConfig.integrations.whatsapp.isConnected && (
+                  <div className="absolute top-0 right-0 p-3"><CheckCircle2 className="w-5 h-5 text-emerald-500" /></div>
+                )}
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`p-2 rounded-lg ${aiConfig.integrations.whatsapp.isConnected ? 'bg-emerald-600/20 text-emerald-400' : 'bg-zinc-800 text-zinc-400'}`}>
+                    <Phone className="w-5 h-5" />
                   </div>
-                  <h3 className="text-sm font-semibold text-white mb-1">Add Custom Webhook</h3>
-                  <p className="text-xs text-zinc-500 mb-3">Connect your own frontend or app.</p>
-                  <button className="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-white rounded-lg transition-colors">
-                    Generate API Key
-                  </button>
+                  <h3 className="text-sm font-semibold text-white">WhatsApp Business</h3>
                 </div>
+                <p className="text-xs text-zinc-500 mb-4 h-8">
+                  {aiConfig.integrations.whatsapp.isConnected 
+                    ? `Connected via ${aiConfig.integrations.whatsapp.connectionMethod} setup.` 
+                    : 'Enable AI chat for your WhatsApp API number.'}
+                </p>
+                <button onClick={() => openIntegrationModal('whatsapp')} className="text-xs font-medium text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-lg transition-colors w-full text-left flex justify-between items-center">
+                  {aiConfig.integrations.whatsapp.isConnected ? 'Manage Connection' : 'Setup Connection'} <span>&rarr;</span>
+                </button>
               </div>
 
             </div>

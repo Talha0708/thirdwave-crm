@@ -5,23 +5,31 @@ const aiConfigSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'User', 
         required: true,
-        unique: true // একজন ইউজারের একটাই কনফিগ থাকবে
+        unique: true 
     },
     systemPrompt: { 
         type: String, 
-        default: "You are an expert sales assistant for THIRDWAVE-CRM. Always be polite, professional, and try to close the sale. Ask for the customer's phone number before confirming an order." 
+        default: "You are an expert sales assistant for THIRDWAVE-CRM. Always be polite, professional, and try to close the sale." 
     },
-    autoReply: { 
-        type: Boolean, 
-        default: true 
-    },
-    tone: { 
-        type: String, 
-        default: 'professional' 
-    },
-    delay: { 
-        type: String, 
-        default: '0' 
+    autoReply: { type: Boolean, default: true },
+    tone: { type: String, default: 'professional' },
+    delay: { type: String, default: '0' },
+    
+    // 💥 ENTERPRISE INTEGRATIONS (Facebook, WhatsApp, etc.)
+    integrations: {
+        facebook: {
+            isConnected: { type: Boolean, default: false },
+            connectionMethod: { type: String, enum: ['manual', 'oauth', 'none'], default: 'none' },
+            pageId: { type: String, default: "" },
+            pageName: { type: String, default: "" },
+            accessToken: { type: String, default: "" }
+        },
+        whatsapp: {
+            isConnected: { type: Boolean, default: false },
+            connectionMethod: { type: String, enum: ['manual', 'oauth', 'none'], default: 'none' },
+            phoneNumberId: { type: String, default: "" },
+            accessToken: { type: String, default: "" }
+        }
     }
 }, {
     timestamps: true
