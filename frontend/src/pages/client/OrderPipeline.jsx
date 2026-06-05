@@ -8,6 +8,9 @@ const OrderPipeline = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [draggedOrderId, setDraggedOrderId] = useState(null);
+  
+  // 💥 NEW: Dropdown Menu State
+  const [activeDropdown, setActiveDropdown] = useState(null);
 
   // ─── Modal States ───
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -38,11 +41,38 @@ const OrderPipeline = () => {
     if (token) fetchOrders();
   }, [token]);
 
-  // ─── 2. Drag & Drop Logic ───
+  // ─── 2. Universal Status Update Logic (For both Drag & Click) ───
+  const handleStatusChange = async (orderId, newStatus) => {
+    setActiveDropdown(null); // মেনু ক্লোজ করা
+    
+    // যদি সেম কলামেই আবার ড্রপ/ক্লিক করে, তবে কিছু করার দরকার নেই
+    const orderToMove = orders.find(o => o._id === orderId);
+    if (orderToMove && orderToMove.status === newStatus) return;
+
+    // Optimistic Update: আগে স্ক্রিনে চেঞ্জ হবে
+    const previousOrders = [...orders];
+    setOrders((prev) => 
+      prev.map((order) => 
+        order._id === orderId ? { ...order, status: newStatus } : order
+      )
+    );
+
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.put(`${API_URL}/orders/${orderId}`, { status: newStatus }, config);
+    } catch (error) {
+      console.error("Failed to update status", error);
+      alert("⚠️ Server error! Couldn't move the order.");
+      setOrders(previousOrders); // এরর হলে আগের অবস্থায় ব্যাক করবে
+    }
+  };
+
+  // ─── 3. Drag & Drop Handlers ───
   const handleDragStart = (e, id) => {
     setDraggedOrderId(id);
     e.dataTransfer.effectAllowed = 'move';
     setTimeout(() => { e.target.style.opacity = '0.5'; }, 0);
+    setActiveDropdown(null); // ড্র্যাগ শুরু হলে মেনু বন্ধ হয়ে যাবে
   };
 
   const handleDragEnd = (e) => {
@@ -52,28 +82,14 @@ const OrderPipeline = () => {
 
   const handleDragOver = (e) => { e.preventDefault(); };
 
-  const handleDrop = async (e, newStatus) => {
+  const handleDrop = (e, newStatus) => {
     e.preventDefault();
-    if (!draggedOrderId) return;
-
-    const previousOrders = [...orders];
-    setOrders((prev) => 
-      prev.map((order) => 
-        order._id === draggedOrderId ? { ...order, status: newStatus } : order
-      )
-    );
-
-    try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.put(`${API_URL}/orders/${draggedOrderId}`, { status: newStatus }, config);
-    } catch (error) {
-      console.error("Failed to update status", error);
-      alert("⚠️ Server error! Couldn't move the order.");
-      setOrders(previousOrders);
+    if (draggedOrderId) {
+      handleStatusChange(draggedOrderId, newStatus);
     }
   };
 
-  // ─── 3. Professional Add Order Form Submit ───
+  // ─── 4. Add Order Form Submit ───
   const handleAddOrder = async (e) => {
     e.preventDefault();
     setSubmitLoading(true);
@@ -91,7 +107,6 @@ const OrderPipeline = () => {
       fetchOrders(); 
     } catch (err) {
       console.error("Failed to add order", err);
-      // 💥 Super Debugger: আসল এরর মেসেজ বের করবে
       const errorMessage = err.response?.data?.error || err.message || "Unknown Error";
       alert(`⚠️ Save Failed!\nReason: ${errorMessage}`);
     } finally {
@@ -118,8 +133,6 @@ const OrderPipeline = () => {
                     <button onClick={() => setIsModalOpen(false)} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
                 </div>
                 <form onSubmit={handleAddOrder} className="p-6 space-y-4">
-                    
-                    {/* Customer Details */}
                     <div>
                         <label className="text-sm text-zinc-400 block mb-1.5">Customer Name</label>
                         <input required type="text" value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50" placeholder="e.g. Rakib Hasan" />
@@ -158,15 +171,13 @@ const OrderPipeline = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-semibold text-white tracking-tight">Order Pipeline</h1>
-          <p className="text-sm text-zinc-400 mt-1">Manage and track customer orders via drag-and-drop.</p>
+          <p className="text-sm text-zinc-400 mt-1">Manage and track customer orders via drag-and-drop or action menu.</p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
-          
           <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors">
             <Plus className="w-4 h-4" /> Create Order
           </button>
-
-          <div className="relative w-full sm:w-64">
+          <div className="relative w-full sm:w-64 hidden sm:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
             <input 
               type="text" 
@@ -174,9 +185,6 @@ const OrderPipeline = () => {
               className="w-full pl-9 pr-4 py-2 bg-[#0A0A0A] border border-zinc-800 rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
             />
           </div>
-          <button className="p-2 bg-[#0A0A0A] border border-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors">
-            <Filter className="w-4 h-4" />
-          </button>
         </div>
       </div>
 
@@ -218,18 +226,52 @@ const OrderPipeline = () => {
                       draggable
                       onDragStart={(e) => handleDragStart(e, order._id)}
                       onDragEnd={handleDragEnd}
-                      className="bg-[#111111] border border-zinc-800 p-4 rounded-xl cursor-grab active:cursor-grabbing hover:border-zinc-700 transition-colors shadow-sm group"
+                      className="bg-[#111111] border border-zinc-800 p-4 rounded-xl cursor-grab active:cursor-grabbing hover:border-zinc-700 transition-colors shadow-sm relative group"
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-2">
-                          <GripVertical className="w-4 h-4 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <GripVertical className="w-4 h-4 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block" />
                           <span className="text-[10px] font-mono text-zinc-400 bg-zinc-800/50 px-2 py-1 rounded border border-zinc-700">
                             ORD-{order._id.slice(-5).toUpperCase()}
                           </span>
                         </div>
-                        <button className="text-zinc-600 hover:text-zinc-300 transition-colors">
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
+                        
+                        {/* 💥 Action Menu / 3-Dot Button */}
+                        <div className="relative">
+                          <button 
+                            onClick={() => setActiveDropdown(activeDropdown === order._id ? null : order._id)} 
+                            className="p-1 text-zinc-500 hover:text-white transition-colors relative z-20 rounded-md hover:bg-zinc-800"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+
+                          {/* Dropdown Menu */}
+                          {activeDropdown === order._id && (
+                            <>
+                              {/* Background overlay to close menu when clicked outside */}
+                              <div className="fixed inset-0 z-10" onClick={() => setActiveDropdown(null)}></div>
+                              
+                              <div className="absolute right-0 mt-2 w-36 bg-[#0A0A0A] border border-zinc-700 rounded-xl shadow-2xl z-20 py-1 overflow-hidden">
+                                <div className="px-3 py-2 text-[10px] font-bold text-zinc-500 uppercase tracking-wider border-b border-zinc-800/50 bg-[#111111]">
+                                  Move Order To
+                                </div>
+                                {columns.map(c => (
+                                  c.id !== order.status && ( // বর্তমান স্ট্যাটাস বাদে বাকিগুলো দেখাবে
+                                    <button 
+                                      key={c.id} 
+                                      onClick={() => handleStatusChange(order._id, c.id)} 
+                                      className="w-full text-left px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-indigo-600 hover:text-white transition-colors flex items-center gap-2"
+                                    >
+                                      <c.icon className="w-3.5 h-3.5" />
+                                      {c.title}
+                                    </button>
+                                  )
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+
                       </div>
                       
                       <h4 className="font-medium text-zinc-200 text-sm mb-1">{order.customerName}</h4>
