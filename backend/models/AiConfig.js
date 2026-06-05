@@ -9,13 +9,23 @@ const aiConfigSchema = new mongoose.Schema({
     },
     systemPrompt: { 
         type: String, 
-        default: "You are an expert sales assistant for THIRDWAVE-CRM. Always be polite, professional, and try to close the sale." 
+        default: "You are an expert sales assistant for THIRDWAVE CRM. Always be polite, professional, and try to close the sale." 
     },
     autoReply: { type: Boolean, default: true },
     tone: { type: String, default: 'professional' },
     delay: { type: String, default: '0' },
     
-    // 💥 ENTERPRISE INTEGRATIONS (Facebook, WhatsApp, etc.)
+    // 💥 NEW: Subscription & Rate Limiting Engine
+    subscription: {
+        plan: { type: String, enum: ['free', 'basic', 'pro', 'enterprise'], default: 'free' },
+        monthlyLimit: { type: Number, default: 50 }, // ফ্রি ইউজারদের জন্য 50 মেসেজ
+        monthlyUsed: { type: Number, default: 0 },
+        rpmLimit: { type: Number, default: 1 }, // ফ্রি ইউজারদের জন্য 1 RPM
+        rpmUsed: { type: Number, default: 0 },
+        lastMessageTimestamp: { type: Date, default: Date.now },
+        billingCycleReset: { type: Date, default: Date.now }
+    },
+
     integrations: {
         facebook: {
             isConnected: { type: Boolean, default: false },

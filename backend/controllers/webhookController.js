@@ -22,7 +22,7 @@ export const receiveMessage = async (req, res) => {
         const body = req.body;
 
         if (body.object === 'page') {
-            const processPromises = []; // 💥 NEW: সব কাজ একসাথে করার জন্য Array
+            const processPromises = [];
 
             body.entry.forEach((entry) => {
                 const pageId = entry.id;
@@ -32,27 +32,62 @@ export const receiveMessage = async (req, res) => {
                         const senderPsid = webhook_event.sender.id;
                         const incomingText = webhook_event.message.text;
                         
-                        console.log(`\n📩 [NEW MESSAGE] Page: ${pageId} | User: ${senderPsid} | Text: "${incomingText}"`);
+                        console.log(`\n📩 [NEW MESSAGE] Page: ${pageId} | User: ${senderPsid}`);
 
-                        // 💥 NEW: Promise তৈরি করে Array-তে রাখা (Vercel যেন ওয়েট করে)
                         const processTask = async () => {
                             try {
                                 const config = await AiConfig.findOne({ 
-                                    "integrations.facebook.pageId": pageId,
+                                    "integrations.facebook.pageId": String(pageId),
                                     "integrations.facebook.isConnected": true 
                                 });
 
-                                if (!config) return;
-
-                                if (config.autoReply) {
-                                    console.log("🧠 AI is thinking...");
-                                    // AI ব্রেইনের কাছে মেসেজ পাঠানো
-                                    const aiReply = await generateAIResponse(incomingText, config.systemPrompt, []);
-                                    console.log(`🤖 AI Generated Reply: "${aiReply}"`);
-                                    
-                                    // কাস্টমারকে মেসেজ পাঠানো
-                                    await sendFacebookMessage(senderPsid, aiReply, config.integrations.facebook.accessToken);
+                                if (!config) {
+                                    console.log(`⚠️ STOPPED: No config found for Page ID: ${pageId}`);
+                                    return;
                                 }
+
+                                if (!config.autoReply) {
+                                    console.log("⏸️ STOPPED: Auto-reply is OFF.");
+                                    return;
+                                }
+
+                                // 💥 RATE LIMITING ENGINE 💥
+                                const now = new Date();
+                                const sub = config.subscription;
+
+                                // ১. মান্থলি লিমিট চেক
+                                if (sub.monthlyUsed >= sub.monthlyLimit) {
+                                    console.log(`❌ BLOCK: Monthly Limit (${sub.monthlyLimit}) Reached for Page: ${pageId}`);
+                                    // Optional: এখানে কাস্টমারকে একটা মেসেজ দেওয়া যায় যে "আমাদের সিস্টেম বিজি আছে, মানুষ রিপ্লাই দেবে।"
+                                    return;
+                                }
+
+                                // ২. RPM (Requests Per Minute) চেক এবং রিসেট লজিক
+                                const timeSinceLastMessage = now.getTime() - new Date(sub.lastMessageTimestamp).getTime();
+                                
+                                if (timeSinceLastMessage > 60000) {
+                                    // যদি ১ মিনিট পার হয়ে যায়, তাহলে RPM কাউন্টার ০ করে দাও
+                                    sub.rpmUsed = 0;
+                                } else if (sub.rpmUsed >= sub.rpmLimit) {
+                                    // যদি ১ মিনিটের ভেতরে লিমিট ক্রস করে
+                                    console.log(`⏳ THROTTLE: RPM Limit (${sub.rpmLimit}/min) Exceeded for Page: ${pageId}`);
+                                    return; 
+                                }
+
+                                // ৩. লিমিট ঠিক আছে! এবার কাউন্টার আপডেট করে ডেটাবেসে সেভ করো
+                                sub.monthlyUsed += 1;
+                                sub.rpmUsed += 1;
+                                sub.lastMessageTimestamp = now;
+                                await config.save(); // 💥 Database Updated!
+
+                                console.log(`📈 Usage Update: Monthly (${sub.monthlyUsed}/${sub.monthlyLimit}) | RPM (${sub.rpmUsed}/${sub.rpmLimit})`);
+                                console.log("🧠 AI is thinking...");
+                                
+                                const aiReply = await generateAIResponse(incomingText, config.systemPrompt, []);
+                                console.log(`🤖 AI Reply Generated!`);
+                                
+                                await sendFacebookMessage(senderPsid, aiReply, config.integrations.facebook.accessToken);
+                                
                             } catch (err) {
                                 console.error("❌ Pipeline Error:", err);
                             }
@@ -63,10 +98,7 @@ export const receiveMessage = async (req, res) => {
                 });
             });
 
-            // 💥 MASTERSTROKE: Vercel-কে ওয়েট করানো হচ্ছে সব AI কাজ শেষ হওয়া পর্যন্ত
             await Promise.all(processPromises);
-
-            // কাজ শেষ হলে তারপর Facebook-কে 200 OK পাঠানো
             res.status(200).send('EVENT_RECEIVED');
         } else {
             res.sendStatus(404);
