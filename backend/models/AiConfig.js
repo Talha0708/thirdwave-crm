@@ -17,7 +17,8 @@ const aiConfigSchema = new mongoose.Schema({
     
     // 💥 NEW: Subscription & Rate Limiting Engine
     subscription: {
-        plan: { type: String, enum: ['free', 'basic', 'pro', 'enterprise'], default: 'free' },
+        // 💥 FIXED: 'business' added to enum!
+        plan: { type: String, enum: ['free', 'basic', 'pro', 'business', 'enterprise'], default: 'free' },
         monthlyLimit: { type: Number, default: 50 }, // ফ্রি ইউজারদের জন্য 50 মেসেজ
         monthlyUsed: { type: Number, default: 0 },
         rpmLimit: { type: Number, default: 1 }, // ফ্রি ইউজারদের জন্য 1 RPM

@@ -1,12 +1,13 @@
 import User from '../models/User.js';
 import AiConfig from '../models/AiConfig.js';
 
-// 💥 মাস্টার প্রাইসিং ইঞ্জিন: প্ল্যান অনুযায়ী MRR, RPM এবং লিমিট একদম লক করে দেওয়া হলো!
+// 💥 মাস্টার প্রাইসিং ইঞ্জিন: নতুন ৪ টিয়ারের লিমিট এবং স্পিড লক করে দেওয়া হলো!
 const getPlanDetails = (plan) => {
     const p = plan?.toLowerCase() || 'basic';
-    if (p === 'enterprise') return { mrr: 8000, monthlyLimit: 40000, rpmLimit: 10, name: 'Enterprise' };
-    if (p === 'pro') return { mrr: 1200, monthlyLimit: 6000, rpmLimit: 5, name: 'Pro' };
-    return { mrr: 500, monthlyLimit: 2500, rpmLimit: 3, name: 'Basic' }; 
+    if (p === 'enterprise') return { mrr: 8000, monthlyLimit: 30000, rpmLimit: 12, name: 'Enterprise' };
+    if (p === 'business') return { mrr: 3000, monthlyLimit: 12000, rpmLimit: 10, name: 'Business' }; // 💥 NEW
+    if (p === 'pro') return { mrr: 1200, monthlyLimit: 5000, rpmLimit: 7, name: 'Pro' }; // 💥 UPDATED
+    return { mrr: 500, monthlyLimit: 3000, rpmLimit: 3, name: 'Basic' }; // 💥 UPDATED
 };
 
 // 💥 হেল্পার: আজ থেকে ঠিক ৩০ দিন পরের ডেট বের করা (Billing Cycle)
@@ -80,7 +81,7 @@ export const addClient = async (req, res) => {
 // ৩. সব ক্লায়েন্টদের লিস্ট পাওয়ার ফাংশন (💥 AI Usage ডেটার সাথে মার্জ করে)
 export const getAllClients = async (req, res) => {
     try {
-        // lean() ইউজ করা হয়েছে যাতে সহজে ডাটা মডিফাই করা যায়
+        // lean() ইউজ করা হয়েছে যাতে সহজে ডাটা মডিফাই করা যায়
         const users = await User.find({ role: 'user' })
                                 .select('-password')
                                 .sort({ createdAt: -1 })

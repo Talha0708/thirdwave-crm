@@ -24,12 +24,13 @@ const ManageClients = () => {
 
     const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
 
-    // 💥 Auto-calculate MRR based on selected Plan
+    // 💥 FIXED: Business Plan added for auto-MRR calculation
     const handlePlanChange = (e, isEdit = false) => {
         const selectedPlan = e.target.value;
         let calculatedMrr = 500;
         
         if (selectedPlan.toLowerCase() === 'pro') calculatedMrr = 1200;
+        if (selectedPlan.toLowerCase() === 'business') calculatedMrr = 3000; // 💥 NEW
         if (selectedPlan.toLowerCase() === 'enterprise') calculatedMrr = 8000;
 
         if (isEdit) {
@@ -158,6 +159,7 @@ const ManageClients = () => {
                                     <select value={addFormData.plan} onChange={(e) => handlePlanChange(e, false)} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50">
                                         <option value="Basic">Basic</option>
                                         <option value="Pro">Pro</option>
+                                        <option value="Business">Business</option> {/* 💥 FIXED */}
                                         <option value="Enterprise">Enterprise</option>
                                     </select>
                                 </div>
@@ -199,6 +201,7 @@ const ManageClients = () => {
                                 <select value={editFormData.plan} onChange={(e) => handlePlanChange(e, true)} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500/50">
                                     <option value="Basic">Basic</option>
                                     <option value="Pro">Pro</option>
+                                    <option value="Business">Business</option> {/* 💥 FIXED */}
                                     <option value="Enterprise">Enterprise</option>
                                 </select>
                             </div>
@@ -260,9 +263,7 @@ const ManageClients = () => {
                             <tr>
                                 <th className="px-6 py-4 whitespace-nowrap">Workspace / Email</th>
                                 <th className="px-6 py-4 whitespace-nowrap">Plan & MRR</th>
-                                {/* 💥 NEW: Usage & Speed Column */}
                                 <th className="px-6 py-4 whitespace-nowrap">Usage & Speed</th>
-                                {/* 💥 NEW: Expiry Column */}
                                 <th className="px-6 py-4 whitespace-nowrap">Expiry</th>
                                 <th className="px-6 py-4 whitespace-nowrap">Status</th>
                                 <th className="px-6 py-4 text-right whitespace-nowrap">Actions</th>
@@ -289,7 +290,6 @@ const ManageClients = () => {
                                 filteredClients.map((client) => (
                                     <tr key={client._id} className="hover:bg-zinc-900/30 transition-colors group">
                                         
-                                        {/* Column 1: Info */}
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center font-bold text-white border border-zinc-700 uppercase shadow-sm flex-shrink-0">
@@ -302,7 +302,6 @@ const ManageClients = () => {
                                             </div>
                                         </td>
                                         
-                                        {/* Column 2: Plan & MRR */}
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col gap-1.5 items-start">
                                                 <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 text-[10px] font-bold tracking-wider uppercase border border-zinc-700">
@@ -312,7 +311,6 @@ const ManageClients = () => {
                                             </div>
                                         </td>
 
-                                        {/* 💥 Column 3: Usage & RPM (NEW) */}
                                         <td className="px-6 py-4">
                                             {client.subscription ? (
                                                 <div className="flex flex-col gap-1">
@@ -328,7 +326,6 @@ const ManageClients = () => {
                                             )}
                                         </td>
 
-                                        {/* 💥 Column 4: Expiry (NEW) */}
                                         <td className="px-6 py-4 text-xs font-medium">
                                             {client.subscription?.expiryDate ? (() => {
                                                 const days = Math.ceil((new Date(client.subscription.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
@@ -342,7 +339,6 @@ const ManageClients = () => {
                                             )}
                                         </td>
 
-                                        {/* Column 5: Status */}
                                         <td className="px-6 py-4">
                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
                                                 client.status === 'Active' ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' : 
@@ -357,7 +353,6 @@ const ManageClients = () => {
                                             </span>
                                         </td>
 
-                                        {/* Column 6: Actions */}
                                         <td className="px-6 py-4 text-right">
                                             <button 
                                                 onClick={() => openEditModal(client)} 
