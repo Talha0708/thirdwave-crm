@@ -100,45 +100,53 @@ const AISetup = () => {
     }
   };
 
-  // ─── 3. Facebook Auto Login Handler ───
+  // ─── 3. Facebook Auto Login Handler (FIXED ASYNC ERROR) ───
   const handleFacebookAutoLogin = () => {
     if (!isSdkLoaded) {
       alert("Facebook SDK is still loading. Please wait a second.");
       return;
     }
 
-    window.FB.login(async function (response) {
-      if (response.authResponse) {
-        const shortLivedToken = response.authResponse.accessToken;
-        console.log("✅ Initial Login Success! Sending to backend...");
-        
-        try {
-          setIntegrationSaving(true);
-          const config = { headers: { Authorization: `Bearer ${token}` } };
+    // 💥 Facebook-এর রুলস অনুযায়ী এখানে নরমাল ফাংশন দিলাম
+    window.FB.login(function (response) {
+      
+      // API কলের জন্য ভেতরের কাজটুকু আলাদা async ফাংশনে রাখলাম
+      const processToken = async () => {
+        if (response.authResponse) {
+          const shortLivedToken = response.authResponse.accessToken;
+          console.log("✅ Initial Login Success! Sending to backend...");
           
-          const { data } = await axios.post(`${API_URL}/ai-config/facebook-oauth`, { shortLivedToken }, config);
-          
-          if (data.success) {
-            setAiConfig(prev => ({
-              ...prev,
-              integrations: {
-                ...prev.integrations,
-                facebook: data.data
-              }
-            }));
-            alert("✅ Facebook Page Connected Successfully!");
-            setActiveModal(null);
+          try {
+            setIntegrationSaving(true);
+            const config = { headers: { Authorization: `Bearer ${token}` } };
+            
+            const { data } = await axios.post(`${API_URL}/ai-config/facebook-oauth`, { shortLivedToken }, config);
+            
+            if (data.success) {
+              setAiConfig(prev => ({
+                ...prev,
+                integrations: {
+                  ...prev.integrations,
+                  facebook: data.data
+                }
+              }));
+              alert("✅ Facebook Page Connected Successfully!");
+              setActiveModal(null);
+            }
+          } catch (error) {
+            console.error("Token Exchange Error:", error);
+            alert("⚠️ Failed to connect Facebook. Please try again.");
+          } finally {
+            setIntegrationSaving(false);
           }
-        } catch (error) {
-          console.error("Token Exchange Error:", error);
-          alert("⚠️ Failed to connect Facebook. Please try again.");
-        } finally {
-          setIntegrationSaving(false);
-        }
 
-      } else {
-        console.log('❌ User cancelled login or did not fully authorize.');
-      }
+        } else {
+          console.log('❌ User cancelled login or did not fully authorize.');
+        }
+      };
+
+      processToken(); // ফাংশনটা সাথে সাথেই কল করে দিলাম
+
     }, { 
       scope: 'pages_show_list,pages_messaging,pages_read_engagement,pages_manage_metadata' 
     });
