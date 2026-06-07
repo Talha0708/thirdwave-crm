@@ -11,6 +11,11 @@ const AISetup = () => {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   
+  // ─── Facebook SDK State ───
+  const [isSdkLoaded, setIsSdkLoaded] = useState(false);
+  // ⚠️ বস্, এখানে তোর মেটা ড্যাশবোর্ড থেকে App ID টা এনে বসাবি
+  const FACEBOOK_APP_ID = "1471776343955299"; // তোর স্ক্রিনশট থেকে আইডিটা দিলাম, চেক করে নিস
+
   // ─── Main Config State ───
   const [aiConfig, setAiConfig] = useState({
     systemPrompt: "",
@@ -24,12 +29,37 @@ const AISetup = () => {
   });
 
   // ─── Modal States ───
-  const [activeModal, setActiveModal] = useState(null); // 'facebook' or 'whatsapp' or null
-  const [modalTab, setModalTab] = useState('auto'); // 'auto' or 'manual'
+  const [activeModal, setActiveModal] = useState(null);
+  const [modalTab, setModalTab] = useState('auto');
   const [manualFormData, setManualFormData] = useState({ id: '', name: '', token: '' });
   const [integrationSaving, setIntegrationSaving] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
+
+  // ─── Load Facebook SDK ───
+  useEffect(() => {
+    if (window.FB) {
+      setIsSdkLoaded(true);
+      return;
+    }
+    window.fbAsyncInit = function () {
+      window.FB.init({
+        appId: FACEBOOK_APP_ID,
+        cookie: true,
+        xfbml: true,
+        version: 'v19.0'
+      });
+      setIsSdkLoaded(true);
+    };
+
+    (function (d, s, id) {
+      var js, fjs = d.getElementsByTagName(s)[0];
+      if (d.getElementById(id)) { return; }
+      js = d.createElement(s); js.id = id;
+      js.src = "https://connect.facebook.net/en_US/sdk.js";
+      fjs.parentNode.insertBefore(js, fjs);
+    }(document, 'script', 'facebook-jssdk'));
+  }, []);
 
   // ─── 1. Fetch Config ───
   useEffect(() => {
@@ -38,7 +68,6 @@ const AISetup = () => {
         const config = { headers: { Authorization: `Bearer ${token}` } };
         const { data } = await axios.get(`${API_URL}/ai-config`, config);
         if (data.success && data.data) {
-          // Merge fetched data with default structure to prevent undefined errors
           setAiConfig(prev => ({
             ...prev,
             ...data.data,
@@ -72,7 +101,28 @@ const AISetup = () => {
     }
   };
 
-  // ─── 3. Save Integration (Manual) ───
+  // ─── 3. Facebook Auto Login Handler ───
+  const handleFacebookAutoLogin = () => {
+    if (!isSdkLoaded) {
+      alert("Facebook SDK is still loading. Please wait a second.");
+      return;
+    }
+
+    window.FB.login(function (response) {
+      if (response.authResponse) {
+        const shortLivedToken = response.authResponse.accessToken;
+        console.log("✅ Login Success! Token:", shortLivedToken);
+        alert("Login Successful! Check Console for your Token.");
+        // বস্, পরের ধাপে আমরা এই টোকেনটা ব্যাকএন্ডে পাঠিয়ে লং-টার্ম টোকেন আনবো
+      } else {
+        console.log('❌ User cancelled login or did not fully authorize.');
+      }
+    }, { 
+      scope: 'pages_show_list,pages_messaging,pages_read_engagement,pages_manage_metadata' 
+    });
+  };
+
+  // ─── 4. Save Integration (Manual) ───
   const handleIntegrationSave = async (e) => {
     e.preventDefault();
     setIntegrationSaving(true);
@@ -109,7 +159,6 @@ const AISetup = () => {
     }
   };
 
-  // Open Modal Handler
   const openIntegrationModal = (platform) => {
     setActiveModal(platform);
     setModalTab('auto');
@@ -133,12 +182,11 @@ const AISetup = () => {
   return (
     <div className="max-w-5xl mx-auto pb-10 animate-in fade-in duration-500 relative">
       
-      {/* ─── INTEGRATION MODAL (Facebook & WhatsApp) ─── */}
+      {/* ─── INTEGRATION MODAL ─── */}
       {activeModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
             
-            {/* Modal Header */}
             <div className="flex justify-between items-center p-5 border-b border-zinc-800 bg-[#0A0A0A]">
               <div className="flex items-center gap-2">
                 {activeModal === 'facebook' ? <MessageCircle className="w-5 h-5 text-blue-500" /> : <Phone className="w-5 h-5 text-emerald-500" />}
@@ -147,7 +195,6 @@ const AISetup = () => {
               <button onClick={() => setActiveModal(null)} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
 
-            {/* Tabs */}
             <div className="flex border-b border-zinc-800 bg-[#111111]">
               <button onClick={() => setModalTab('auto')} className={`flex-1 py-3 text-sm font-medium transition-colors ${modalTab === 'auto' ? 'text-white border-b-2 border-blue-500 bg-blue-500/5' : 'text-zinc-500 hover:text-zinc-300'}`}>
                 Auto Login (OAuth)
@@ -157,7 +204,6 @@ const AISetup = () => {
               </button>
             </div>
 
-            {/* Tab Content */}
             <div className="p-6">
               {modalTab === 'auto' ? (
                 <div className="text-center py-6">
@@ -166,7 +212,12 @@ const AISetup = () => {
                   </div>
                   <h3 className="text-white font-medium mb-2">One-Click Connection</h3>
                   <p className="text-sm text-zinc-400 mb-6">Securely connect your {activeModal} account using official API authorization.</p>
-                  <button className={`w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.98] ${activeModal === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
+                  
+                  {/* 💥 এখানে আসল ম্যাজিকটা অ্যাড করা হয়েছে */}
+                  <button 
+                    onClick={() => activeModal === 'facebook' ? handleFacebookAutoLogin() : alert('WhatsApp Auto Setup is coming soon!')}
+                    className={`w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.98] ${activeModal === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                  >
                     Continue with {activeModal.charAt(0).toUpperCase() + activeModal.slice(1)}
                   </button>
                 </div>
@@ -218,10 +269,8 @@ const AISetup = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* ─── Main Configuration (Left Side - 2 Cols) ─── */}
+        {/* ─── Main Configuration ─── */}
         <div className="lg:col-span-2 space-y-6">
-          
-          {/* AI Persona & System Prompt */}
           <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl p-6">
             <div className="flex items-center gap-2 mb-4">
               <MessageSquare className="w-5 h-5 text-zinc-300" />
@@ -236,7 +285,6 @@ const AISetup = () => {
             />
           </div>
 
-          {/* Response Behavior */}
           <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl p-6">
             <div className="flex items-center gap-2 mb-6">
               <Sliders className="w-5 h-5 text-zinc-300" />
@@ -277,7 +325,7 @@ const AISetup = () => {
           </div>
         </div>
 
-        {/* ─── Integrations (Right Side - 1 Col) ─── */}
+        {/* ─── Integrations ─── */}
         <div className="space-y-6">
           <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl p-6">
             <div className="flex items-center gap-2 mb-6">
@@ -287,7 +335,7 @@ const AISetup = () => {
 
             <div className="space-y-4">
               
-              {/* 💥 Facebook / Meta Box */}
+              {/* Facebook Box */}
               <div className={`p-4 border rounded-xl relative overflow-hidden transition-colors ${aiConfig.integrations.facebook.isConnected ? 'border-blue-500/30 bg-blue-500/5' : 'border-zinc-800 bg-[#111111]'}`}>
                 {aiConfig.integrations.facebook.isConnected && (
                   <div className="absolute top-0 right-0 p-3"><CheckCircle2 className="w-5 h-5 text-blue-500" /></div>
@@ -308,7 +356,7 @@ const AISetup = () => {
                 </button>
               </div>
 
-              {/* 💥 WhatsApp Box */}
+              {/* WhatsApp Box */}
               <div className={`p-4 border rounded-xl relative overflow-hidden transition-colors ${aiConfig.integrations.whatsapp.isConnected ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-zinc-800 bg-[#111111]'}`}>
                 {aiConfig.integrations.whatsapp.isConnected && (
                   <div className="absolute top-0 right-0 p-3"><CheckCircle2 className="w-5 h-5 text-emerald-500" /></div>
