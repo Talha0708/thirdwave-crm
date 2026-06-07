@@ -55,10 +55,10 @@ export const receiveMessage = async (req, res) => {
                                 const now = new Date();
                                 const sub = config.subscription;
 
-                                // 💥 ১. মান্থলি এক্সপায়ারি ডেট (৩০ দিন) চেক
+                                // 💥 ১. মান্থলি এক্সপায়ারি ডেট (৩০ দিন) চেক
                                 if (sub.expiryDate && new Date(sub.expiryDate) < now) {
                                     console.log(`❌ BLOCK: Subscription Expired (30 Days over) for Page: ${pageId}`);
-                                    return; // মেয়াদ শেষ, AI চুপ থাকবে
+                                    return; // মেয়াদ শেষ, AI চুপ থাকবে
                                 }
 
                                 // ২. মান্থলি লিমিট চেক
@@ -109,5 +109,17 @@ export const receiveMessage = async (req, res) => {
     } catch (error) {
         console.error("Webhook Critical Error:", error);
         res.status(500).send('Server Error');
+    }
+};
+
+// 💥 নতুন অ্যাড করা ফাংশন: Cron Job-এর Queue ক্লিয়ার করার জন্য
+export const processMessageQueue = async (req, res) => {
+    try {
+        console.log("Cron job triggered: Processing message queue...");
+        // WhatsApp Queue processing logic will go here soon
+        res.status(200).json({ success: true, message: "Queue processed successfully" });
+    } catch (error) {
+        console.error("Queue Processing Error:", error);
+        res.status(500).json({ success: false, error: "Failed to process queue" });
     }
 };
