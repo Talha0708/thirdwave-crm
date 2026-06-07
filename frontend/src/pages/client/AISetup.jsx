@@ -13,8 +13,7 @@ const AISetup = () => {
   
   // ─── Facebook SDK State ───
   const [isSdkLoaded, setIsSdkLoaded] = useState(false);
-  // ⚠️ বস্, এখানে তোর মেটা ড্যাশবোর্ড থেকে App ID টা এনে বসাবি
-  const FACEBOOK_APP_ID = "1471776343955299"; // তোর স্ক্রিনশট থেকে আইডিটা দিলাম, চেক করে নিস
+  const FACEBOOK_APP_ID = "1471776343955299"; 
 
   // ─── Main Config State ───
   const [aiConfig, setAiConfig] = useState({
@@ -108,12 +107,35 @@ const AISetup = () => {
       return;
     }
 
-    window.FB.login(function (response) {
+    window.FB.login(async function (response) {
       if (response.authResponse) {
         const shortLivedToken = response.authResponse.accessToken;
-        console.log("✅ Login Success! Token:", shortLivedToken);
-        alert("Login Successful! Check Console for your Token.");
-        // বস্, পরের ধাপে আমরা এই টোকেনটা ব্যাকএন্ডে পাঠিয়ে লং-টার্ম টোকেন আনবো
+        console.log("✅ Initial Login Success! Sending to backend...");
+        
+        try {
+          setIntegrationSaving(true);
+          const config = { headers: { Authorization: `Bearer ${token}` } };
+          
+          const { data } = await axios.post(`${API_URL}/ai-config/facebook-oauth`, { shortLivedToken }, config);
+          
+          if (data.success) {
+            setAiConfig(prev => ({
+              ...prev,
+              integrations: {
+                ...prev.integrations,
+                facebook: data.data
+              }
+            }));
+            alert("✅ Facebook Page Connected Successfully!");
+            setActiveModal(null);
+          }
+        } catch (error) {
+          console.error("Token Exchange Error:", error);
+          alert("⚠️ Failed to connect Facebook. Please try again.");
+        } finally {
+          setIntegrationSaving(false);
+        }
+
       } else {
         console.log('❌ User cancelled login or did not fully authorize.');
       }
@@ -213,12 +235,13 @@ const AISetup = () => {
                   <h3 className="text-white font-medium mb-2">One-Click Connection</h3>
                   <p className="text-sm text-zinc-400 mb-6">Securely connect your {activeModal} account using official API authorization.</p>
                   
-                  {/* 💥 এখানে আসল ম্যাজিকটা অ্যাড করা হয়েছে */}
                   <button 
                     onClick={() => activeModal === 'facebook' ? handleFacebookAutoLogin() : alert('WhatsApp Auto Setup is coming soon!')}
-                    className={`w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.98] ${activeModal === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                    disabled={integrationSaving}
+                    className={`w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${activeModal === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} disabled:opacity-70`}
                   >
-                    Continue with {activeModal.charAt(0).toUpperCase() + activeModal.slice(1)}
+                    {integrationSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                    {integrationSaving ? 'Connecting...' : `Continue with ${activeModal.charAt(0).toUpperCase() + activeModal.slice(1)}`}
                   </button>
                 </div>
               ) : (
