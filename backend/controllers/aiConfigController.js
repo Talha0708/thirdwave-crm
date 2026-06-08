@@ -1,5 +1,5 @@
 import AiConfig from '../models/AiConfig.js';
-import axios from 'axios'; // 💥 নতুন অ্যাড করা হলো
+import axios from 'axios';
 
 // ১. ডেটাবেস থেকে কনফিগ আনা
 export const getAiConfig = async (req, res) => {
@@ -38,14 +38,10 @@ export const updateAiConfig = async (req, res) => {
 export const updateIntegration = async (req, res) => {
     try {
         const { platform, data } = req.body; 
-        // platform = 'facebook' বা 'whatsapp'
-        // data = { isConnected, connectionMethod, pageId, accessToken, etc. }
-
         if (!['facebook', 'whatsapp'].includes(platform)) {
             return res.status(400).json({ success: false, error: "Invalid platform" });
         }
 
-        // ডায়নামিক ফিল্ড আপডেট করা (যেমন: integrations.facebook)
         const updateField = {};
         updateField[`integrations.${platform}`] = data;
 
@@ -66,15 +62,14 @@ export const updateIntegration = async (req, res) => {
     }
 };
 
-// ৪. 💥 Facebook OAuth Token Exchange (অটো লগইনের আসল ম্যাজিক)
+// ৪. 💥 Facebook OAuth Token Exchange (NEW: Returns list of pages to frontend)
 export const exchangeFacebookToken = async (req, res) => {
     try {
         const { shortLivedToken } = req.body;
-        const userId = req.user._id; 
         const APP_ID = process.env.FACEBOOK_APP_ID;
         const APP_SECRET = process.env.FACEBOOK_APP_SECRET;
 
-        // ১. Short-lived টোকেন দিয়ে Long-lived User টোকেন আনা
+        // ১. Short-lived টোকেন দিয়ে Long-lived User টোকেন আনা
         const userTokenUrl = `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${APP_ID}&client_secret=${APP_SECRET}&fb_exchange_token=${shortLivedToken}`;
         const userTokenRes = await axios.get(userTokenUrl);
         const longLivedUserToken = userTokenRes.data.access_token;
@@ -87,32 +82,17 @@ export const exchangeFacebookToken = async (req, res) => {
             return res.status(400).json({ success: false, message: "No Facebook Pages found for this account." });
         }
 
-        // ৩. প্রথম পেজটা সিলেক্ট করা
-        const page = pagesRes.data.data[0]; 
-        const permanentPageToken = page.access_token; 
-        const pageId = page.id;
-        const pageName = page.name;
-
-        // ৪. ডেটাবেসে (AiConfig) সেভ করা
-        let config = await AiConfig.findOne({ user: userId });
-        if (!config) {
-            config = new AiConfig({ user: userId });
-        }
-
-        config.integrations.facebook = {
-            isConnected: true,
-            connectionMethod: 'oauth',
-            pageId: pageId,
-            pageName: pageName,
-            accessToken: permanentPageToken
-        };
-
-        await config.save();
+        // 💥 ৩. ম্যাজিক: ডেটাবেসে সরাসরি সেভ না করে, পেজের লিস্ট ফ্রন্টএন্ডে পাঠানো হচ্ছে
+        const pagesList = pagesRes.data.data.map(page => ({
+            pageId: page.id,
+            pageName: page.name,
+            accessToken: page.access_token
+        }));
 
         res.status(200).json({ 
             success: true, 
-            message: "Facebook connected successfully!",
-            data: config.integrations.facebook 
+            message: "Pages fetched successfully!",
+            pages: pagesList 
         });
 
     } catch (error) {

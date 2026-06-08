@@ -33,6 +33,10 @@ const AISetup = () => {
   const [manualFormData, setManualFormData] = useState({ id: '', name: '', token: '' });
   const [integrationSaving, setIntegrationSaving] = useState(false);
 
+  // 💥 NEW: State for Facebook Pages Dropdown
+  const [availablePages, setAvailablePages] = useState([]);
+  const [selectedPageIndex, setSelectedPageIndex] = useState(0);
+
   const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
 
   // ─── Load Facebook SDK ───
@@ -100,21 +104,18 @@ const AISetup = () => {
     }
   };
 
-  // ─── 3. Facebook Auto Login Handler (FIXED ASYNC ERROR) ───
+  // ─── 3. Facebook Auto Login (Fetch Pages) ───
   const handleFacebookAutoLogin = () => {
     if (!isSdkLoaded) {
       alert("Facebook SDK is still loading. Please wait a second.");
       return;
     }
 
-    // 💥 Facebook-এর রুলস অনুযায়ী এখানে নরমাল ফাংশন দিলাম
     window.FB.login(function (response) {
-      
-      // API কলের জন্য ভেতরের কাজটুকু আলাদা async ফাংশনে রাখলাম
       const processToken = async () => {
         if (response.authResponse) {
           const shortLivedToken = response.authResponse.accessToken;
-          console.log("✅ Initial Login Success! Sending to backend...");
+          console.log("✅ Initial Login Success! Fetching pages from backend...");
           
           try {
             setIntegrationSaving(true);
@@ -122,37 +123,68 @@ const AISetup = () => {
             
             const { data } = await axios.post(`${API_URL}/ai-config/facebook-oauth`, { shortLivedToken }, config);
             
-            if (data.success) {
-              setAiConfig(prev => ({
-                ...prev,
-                integrations: {
-                  ...prev.integrations,
-                  facebook: data.data
-                }
-              }));
-              alert("✅ Facebook Page Connected Successfully!");
-              setActiveModal(null);
+            if (data.success && data.pages) {
+              // 💥 পেজগুলো পেলে ড্রপডাউনের জন্য স্টেটে সেভ করছি
+              setAvailablePages(data.pages);
             }
           } catch (error) {
             console.error("Token Exchange Error:", error);
-            alert("⚠️ Failed to connect Facebook. Please try again.");
+            alert("⚠️ Failed to fetch Facebook Pages. Please try again.");
           } finally {
             setIntegrationSaving(false);
           }
-
         } else {
           console.log('❌ User cancelled login or did not fully authorize.');
         }
       };
 
-      processToken(); // ফাংশনটা সাথে সাথেই কল করে দিলাম
-
+      processToken();
     }, { 
       scope: 'pages_show_list,pages_messaging,pages_read_engagement,pages_manage_metadata' 
     });
   };
 
-  // ─── 4. Save Integration (Manual) ───
+  // ─── 4. Save Selected Facebook Page ───
+  const handleSelectPageAndSave = async () => {
+    setIntegrationSaving(true);
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const selectedPage = availablePages[selectedPageIndex];
+
+      const payload = {
+        platform: 'facebook',
+        data: {
+          isConnected: true,
+          connectionMethod: 'oauth',
+          pageId: selectedPage.pageId,
+          pageName: selectedPage.pageName,
+          accessToken: selectedPage.accessToken
+        }
+      };
+
+      const { data } = await axios.post(`${API_URL}/ai-config/integration`, payload, config);
+
+      if (data.success) {
+        setAiConfig(prev => ({
+          ...prev,
+          integrations: {
+            ...prev.integrations,
+            facebook: payload.data
+          }
+        }));
+        alert("✅ Facebook Page Connected Successfully!");
+        setActiveModal(null);
+        setAvailablePages([]); 
+      }
+    } catch (error) {
+      console.error("Save Page Error:", error);
+      alert("⚠️ Failed to connect the selected page.");
+    } finally {
+      setIntegrationSaving(false);
+    }
+  };
+
+  // ─── 5. Save Integration (Manual) ───
   const handleIntegrationSave = async (e) => {
     e.preventDefault();
     setIntegrationSaving(true);
@@ -192,6 +224,7 @@ const AISetup = () => {
   const openIntegrationModal = (platform) => {
     setActiveModal(platform);
     setModalTab('auto');
+    setAvailablePages([]); 
     const currentData = aiConfig.integrations[platform];
     setManualFormData({
       id: platform === 'facebook' ? currentData.pageId : currentData.phoneNumberId,
@@ -243,14 +276,42 @@ const AISetup = () => {
                   <h3 className="text-white font-medium mb-2">One-Click Connection</h3>
                   <p className="text-sm text-zinc-400 mb-6">Securely connect your {activeModal} account using official API authorization.</p>
                   
-                  <button 
-                    onClick={() => activeModal === 'facebook' ? handleFacebookAutoLogin() : alert('WhatsApp Auto Setup is coming soon!')}
-                    disabled={integrationSaving}
-                    className={`w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${activeModal === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} disabled:opacity-70`}
-                  >
-                    {integrationSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-                    {integrationSaving ? 'Connecting...' : `Continue with ${activeModal.charAt(0).toUpperCase() + activeModal.slice(1)}`}
-                  </button>
+                  {/* 💥 NEW: Dropdown for Selecting Page if pages are fetched */}
+                  {activeModal === 'facebook' && availablePages.length > 0 ? (
+                    <div className="text-left space-y-4">
+                      <div>
+                        <label className="text-xs font-medium text-zinc-400 block mb-1.5 uppercase tracking-wider">Select your Page</label>
+                        <select 
+                          className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50 appearance-none"
+                          value={selectedPageIndex}
+                          onChange={(e) => setSelectedPageIndex(e.target.value)}
+                        >
+                          {availablePages.map((page, index) => (
+                            <option key={page.pageId} value={index}>
+                              {page.pageName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <button 
+                        onClick={handleSelectPageAndSave}
+                        disabled={integrationSaving}
+                        className="w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.98] flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-70"
+                      >
+                        {integrationSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                        {integrationSaving ? 'Saving...' : 'Connect Selected Page'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => activeModal === 'facebook' ? handleFacebookAutoLogin() : alert('WhatsApp Auto Setup is coming soon!')}
+                      disabled={integrationSaving}
+                      className={`w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${activeModal === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} disabled:opacity-70`}
+                    >
+                      {integrationSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                      {integrationSaving ? 'Fetching Pages...' : `Continue with ${activeModal.charAt(0).toUpperCase() + activeModal.slice(1)}`}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <form onSubmit={handleIntegrationSave} className="space-y-4">
