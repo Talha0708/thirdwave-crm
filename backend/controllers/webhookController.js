@@ -1,4 +1,5 @@
 import AiConfig from '../models/AiConfig.js';
+import Order from '../models/Order.js'; 
 import { generateAIResponse } from '../services/aiService.js';
 import { sendFacebookMessage } from '../services/facebookService.js';
 
@@ -55,41 +56,69 @@ export const receiveMessage = async (req, res) => {
                                 const now = new Date();
                                 const sub = config.subscription;
 
-                                // 💥 ১. মান্থলি এক্সপায়ারি ডেট (৩০ দিন) চেক
                                 if (sub.expiryDate && new Date(sub.expiryDate) < now) {
-                                    console.log(`❌ BLOCK: Subscription Expired (30 Days over) for Page: ${pageId}`);
-                                    return; // মেয়াদ শেষ, AI চুপ থাকবে
-                                }
-
-                                // ২. মান্থলি লিমিট চেক
-                                if (sub.monthlyUsed >= sub.monthlyLimit) {
-                                    console.log(`❌ BLOCK: Monthly Limit (${sub.monthlyLimit}) Reached for Page: ${pageId}`);
+                                    console.log(`❌ BLOCK: Subscription Expired for Page: ${pageId}`);
                                     return;
                                 }
 
-                                // ৩. RPM (Requests Per Minute) চেক এবং রিসেট লজিক
+                                if (sub.monthlyUsed >= sub.monthlyLimit) {
+                                    console.log(`❌ BLOCK: Monthly Limit Reached for Page: ${pageId}`);
+                                    return;
+                                }
+
                                 const timeSinceLastMessage = now.getTime() - new Date(sub.lastMessageTimestamp).getTime();
                                 
                                 if (timeSinceLastMessage > 60000) {
                                     sub.rpmUsed = 0;
                                 } else if (sub.rpmUsed >= sub.rpmLimit) {
-                                    console.log(`⏳ THROTTLE: RPM Limit (${sub.rpmLimit}/min) Exceeded for Page: ${pageId}`);
+                                    console.log(`⏳ THROTTLE: RPM Limit Exceeded for Page: ${pageId}`);
                                     return; 
                                 }
 
-                                // ৪. লিমিট ঠিক আছে! এবার কাউন্টার আপডেট করে ডেটাবেসে সেভ করো
                                 sub.monthlyUsed += 1;
                                 sub.rpmUsed += 1;
                                 sub.lastMessageTimestamp = now;
-                                await config.save(); // 💥 Database Updated!
+                                await config.save(); 
 
                                 console.log(`📈 Usage Update: Monthly (${sub.monthlyUsed}/${sub.monthlyLimit}) | RPM (${sub.rpmUsed}/${sub.rpmLimit})`);
                                 console.log("🧠 AI is thinking...");
                                 
                                 const aiReply = await generateAIResponse(incomingText, config.systemPrompt, []);
                                 console.log(`🤖 AI Reply Generated!`);
+
+                                // 💥💥 ORDER PARSING ENGINE 💥💥
+                                let finalMessageToSend = aiReply;
+
+                                if (aiReply.includes('"trigger_order": true')) {
+                                    try {
+                                        console.log("🛒 Order trigger detected in AI response!");
+                                        
+                                        const jsonMatch = aiReply.match(/\{[\s\S]*?\}/);
+                                        
+                                        if (jsonMatch) {
+                                            const orderData = JSON.parse(jsonMatch[0]);
+                                            
+                                            // 💥 একদম তোর Order স্কিমার সাথে মিলিয়ে ডেটা পুশ করা হলো
+                                            await Order.create({
+                                                user: config.user,
+                                                customerName: orderData.customer_name,
+                                                customerPhone: orderData.customer_phone,
+                                                customerAddress: orderData.customer_address,
+                                                productName: orderData.order_items,
+                                                totalAmount: orderData.total_amount || 0,
+                                                status: 'Pending'
+                                            });
+                                            
+                                            console.log("✅ Order successfully captured and saved to Database!");
+                                            
+                                            finalMessageToSend = aiReply.replace(/```json[\s\S]*?```/g, '').replace(/\{[\s\S]*?\}/g, '').trim();
+                                        }
+                                    } catch (parseError) {
+                                        console.error("❌ Failed to parse or save order JSON:", parseError);
+                                    }
+                                }
                                 
-                                await sendFacebookMessage(senderPsid, aiReply, config.integrations.facebook.accessToken);
+                                await sendFacebookMessage(senderPsid, finalMessageToSend, config.integrations.facebook.accessToken);
                                 
                             } catch (err) {
                                 console.error("❌ Pipeline Error:", err);
@@ -112,11 +141,9 @@ export const receiveMessage = async (req, res) => {
     }
 };
 
-// 💥 নতুন অ্যাড করা ফাংশন: Cron Job-এর Queue ক্লিয়ার করার জন্য
 export const processMessageQueue = async (req, res) => {
     try {
         console.log("Cron job triggered: Processing message queue...");
-        // WhatsApp Queue processing logic will go here soon
         res.status(200).json({ success: true, message: "Queue processed successfully" });
     } catch (error) {
         console.error("Queue Processing Error:", error);
