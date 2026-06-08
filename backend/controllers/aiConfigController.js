@@ -74,15 +74,15 @@ export const exchangeFacebookToken = async (req, res) => {
         const userTokenRes = await axios.get(userTokenUrl);
         const longLivedUserToken = userTokenRes.data.access_token;
 
-        // ২. ইউজারের সাথে কানেক্টেড ফেসবুক পেজগুলো খুঁজে বের করা
-        const pagesUrl = `https://graph.facebook.com/v19.0/me/accounts?access_token=${longLivedUserToken}`;
+        // ২. ইউজারের সাথে কানেক্টেড ফেসবুক পেজগুলো খুঁজে বের করা (💥 limit=100 অ্যাড করা হয়েছে)
+        const pagesUrl = `https://graph.facebook.com/v19.0/me/accounts?limit=100&access_token=${longLivedUserToken}`;
         const pagesRes = await axios.get(pagesUrl);
         
         if (!pagesRes.data.data || pagesRes.data.data.length === 0) {
             return res.status(400).json({ success: false, message: "No Facebook Pages found for this account." });
         }
 
-        // 💥 ৩. ম্যাজিক: ডেটাবেসে সরাসরি সেভ না করে, পেজের লিস্ট ফ্রন্টএন্ডে পাঠানো হচ্ছে
+        // ৩. ম্যাজিক: ডেটাবেসে সরাসরি সেভ না করে, পেজের লিস্ট ফ্রন্টএন্ডে পাঠানো হচ্ছে
         const pagesList = pagesRes.data.data.map(page => ({
             pageId: page.id,
             pageName: page.name,
