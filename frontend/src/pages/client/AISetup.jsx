@@ -33,7 +33,7 @@ const AISetup = () => {
   const [manualFormData, setManualFormData] = useState({ id: '', name: '', token: '' });
   const [integrationSaving, setIntegrationSaving] = useState(false);
 
-  // 💥 NEW: State for Facebook Pages Dropdown
+  // 💥 State for Facebook Pages Dropdown
   const [availablePages, setAvailablePages] = useState([]);
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
 
@@ -104,7 +104,7 @@ const AISetup = () => {
     }
   };
 
-  // ─── 3. Facebook Auto Login (Fetch Pages) ───
+  // ─── 3. Facebook Auto Login (FORCE REREQUEST FIX) ───
   const handleFacebookAutoLogin = () => {
     if (!isSdkLoaded) {
       alert("Facebook SDK is still loading. Please wait a second.");
@@ -115,7 +115,7 @@ const AISetup = () => {
       const processToken = async () => {
         if (response.authResponse) {
           const shortLivedToken = response.authResponse.accessToken;
-          console.log("✅ Initial Login Success! Fetching pages from backend...");
+          console.log("✅ Fresh Login Success! Fetching pages from backend...");
           
           try {
             setIntegrationSaving(true);
@@ -124,8 +124,8 @@ const AISetup = () => {
             const { data } = await axios.post(`${API_URL}/ai-config/facebook-oauth`, { shortLivedToken }, config);
             
             if (data.success && data.pages) {
-              // 💥 পেজগুলো পেলে ড্রপডাউনের জন্য স্টেটে সেভ করছি
               setAvailablePages(data.pages);
+              console.log("Pages state updated with:", data.pages);
             }
           } catch (error) {
             console.error("Token Exchange Error:", error);
@@ -140,7 +140,10 @@ const AISetup = () => {
 
       processToken();
     }, { 
-      scope: 'pages_show_list,pages_messaging,pages_read_engagement,pages_manage_metadata' 
+      // 💥 Scope-এ business_management অ্যাড করা হলো এবং auth_type দেওয়া হলো
+      scope: 'pages_show_list,pages_messaging,pages_read_engagement,pages_manage_metadata,business_management',
+      auth_type: 'rerequest', 
+      return_scopes: true
     });
   };
 
@@ -276,7 +279,7 @@ const AISetup = () => {
                   <h3 className="text-white font-medium mb-2">One-Click Connection</h3>
                   <p className="text-sm text-zinc-400 mb-6">Securely connect your {activeModal} account using official API authorization.</p>
                   
-                  {/* 💥 NEW: Dropdown for Selecting Page if pages are fetched */}
+                  {/* 💥 Dropdown for Selecting Page if pages are fetched */}
                   {activeModal === 'facebook' && availablePages.length > 0 ? (
                     <div className="text-left space-y-4">
                       <div>
