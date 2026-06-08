@@ -1,5 +1,6 @@
 import AiConfig from '../models/AiConfig.js';
 import Order from '../models/Order.js'; 
+import Product from '../models/Product.js'; // 💥 Product Model ইমপোর্ট করা হয়েছে
 import { generateAIResponse } from '../services/aiService.js';
 import { sendFacebookMessage } from '../services/facebookService.js';
 
@@ -82,10 +83,32 @@ export const receiveMessage = async (req, res) => {
 
                                 console.log(`📈 Usage Update: Monthly (${sub.monthlyUsed}/${sub.monthlyLimit}) | RPM (${sub.rpmUsed}/${sub.rpmLimit})`);
                                 console.log("🧠 AI is thinking...");
-                                
-                                const aiReply = await generateAIResponse(incomingText, config.systemPrompt, []);
-                                console.log(`🤖 AI Reply Generated!`);
 
+                                // 💥💥 CATALOG INJECTION ENGINE (ম্যাজিক এখানে) 💥💥
+                                // ডেটাবেস থেকে এই ইউজারের সব 'Active' প্রোডাক্ট তুলে আনা হচ্ছে
+                                const activeProducts = await Product.find({ 
+                                    user: config.user, 
+                                    status: 'Active' 
+                                });
+
+                                // প্রোডাক্টগুলোকে টেক্সট ফরম্যাটে কনভার্ট করা হচ্ছে
+                                let catalogContext = "\n\n--- INVENTORY DATA ---\nHere are the ONLY products currently available in stock:\n";
+                                if (activeProducts.length > 0) {
+                                    activeProducts.forEach(p => {
+                                        catalogContext += `- ${p.name} (Category: ${p.category}, Price: ৳${p.price}, Sizes: ${p.sizes.join(', ')})\n`;
+                                    });
+                                } else {
+                                    catalogContext += "Currently, no products are available in stock.\n";
+                                }
+                                catalogContext += "Do not offer any products or sizes that are not listed above.\n----------------------";
+
+                                // মেইন প্রম্পটের সাথে ক্যাটালগটা জুড়ে দেওয়া হলো
+                                const finalDynamicPrompt = config.systemPrompt + catalogContext;
+
+                                // এবার এআই-কে রিকোয়েস্ট পাঠানো হচ্ছে
+                                const aiReply = await generateAIResponse(incomingText, finalDynamicPrompt, []);
+                                console.log(`🤖 AI Reply Generated with Catalog Awareness!`);
+                                
                                 // 💥💥 ORDER PARSING ENGINE 💥💥
                                 let finalMessageToSend = aiReply;
 
