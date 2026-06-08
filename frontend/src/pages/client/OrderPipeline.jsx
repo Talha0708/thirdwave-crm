@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
-import { Clock, CheckCircle2, Truck, Package, GripVertical, MoreVertical, Search, Filter, Loader2, Plus, X } from 'lucide-react';
+import { 
+  Clock, CheckCircle2, Truck, Package, GripVertical, 
+  MoreVertical, Search, Filter, Loader2, Plus, X, MapPin 
+} from 'lucide-react'; // 💥 MapPin আইকন অ্যাড করা হলো
 
 const OrderPipeline = () => {
   const { token } = useAuth();
@@ -9,7 +12,7 @@ const OrderPipeline = () => {
   const [loading, setLoading] = useState(true);
   const [draggedOrderId, setDraggedOrderId] = useState(null);
   
-  // 💥 NEW: Dropdown Menu State
+  // 💥 Dropdown Menu State
   const [activeDropdown, setActiveDropdown] = useState(null);
 
   // ─── Modal States ───
@@ -41,15 +44,14 @@ const OrderPipeline = () => {
     if (token) fetchOrders();
   }, [token]);
 
-  // ─── 2. Universal Status Update Logic (For both Drag & Click) ───
+  // ─── 2. Universal Status Update Logic ───
   const handleStatusChange = async (orderId, newStatus) => {
-    setActiveDropdown(null); // মেনু ক্লোজ করা
+    setActiveDropdown(null); 
     
-    // যদি সেম কলামেই আবার ড্রপ/ক্লিক করে, তবে কিছু করার দরকার নেই
     const orderToMove = orders.find(o => o._id === orderId);
     if (orderToMove && orderToMove.status === newStatus) return;
 
-    // Optimistic Update: আগে স্ক্রিনে চেঞ্জ হবে
+    // Optimistic Update
     const previousOrders = [...orders];
     setOrders((prev) => 
       prev.map((order) => 
@@ -63,7 +65,7 @@ const OrderPipeline = () => {
     } catch (error) {
       console.error("Failed to update status", error);
       alert("⚠️ Server error! Couldn't move the order.");
-      setOrders(previousOrders); // এরর হলে আগের অবস্থায় ব্যাক করবে
+      setOrders(previousOrders); 
     }
   };
 
@@ -72,7 +74,7 @@ const OrderPipeline = () => {
     setDraggedOrderId(id);
     e.dataTransfer.effectAllowed = 'move';
     setTimeout(() => { e.target.style.opacity = '0.5'; }, 0);
-    setActiveDropdown(null); // ড্র্যাগ শুরু হলে মেনু বন্ধ হয়ে যাবে
+    setActiveDropdown(null); 
   };
 
   const handleDragEnd = (e) => {
@@ -236,7 +238,7 @@ const OrderPipeline = () => {
                           </span>
                         </div>
                         
-                        {/* 💥 Action Menu / 3-Dot Button */}
+                        {/* Action Menu / 3-Dot Button */}
                         <div className="relative">
                           <button 
                             onClick={() => setActiveDropdown(activeDropdown === order._id ? null : order._id)} 
@@ -248,7 +250,6 @@ const OrderPipeline = () => {
                           {/* Dropdown Menu */}
                           {activeDropdown === order._id && (
                             <>
-                              {/* Background overlay to close menu when clicked outside */}
                               <div className="fixed inset-0 z-10" onClick={() => setActiveDropdown(null)}></div>
                               
                               <div className="absolute right-0 mt-2 w-36 bg-[#0A0A0A] border border-zinc-700 rounded-xl shadow-2xl z-20 py-1 overflow-hidden">
@@ -256,7 +257,7 @@ const OrderPipeline = () => {
                                   Move Order To
                                 </div>
                                 {columns.map(c => (
-                                  c.id !== order.status && ( // বর্তমান স্ট্যাটাস বাদে বাকিগুলো দেখাবে
+                                  c.id !== order.status && ( 
                                     <button 
                                       key={c.id} 
                                       onClick={() => handleStatusChange(order._id, c.id)} 
@@ -271,12 +272,20 @@ const OrderPipeline = () => {
                             </>
                           )}
                         </div>
-
                       </div>
                       
                       <h4 className="font-medium text-zinc-200 text-sm mb-1">{order.customerName}</h4>
-                      <p className="text-xs text-zinc-500 mb-3">{order.customerPhone}</p>
+                      <p className="text-xs text-zinc-500 mb-2">{order.customerPhone}</p>
                       
+                      {/* 💥 NEW: Delivery Address Block (ম্যাপ আইকন সহ সুন্দর এড্রেস সেকশন) */}
+                      <div className="flex items-start gap-1.5 text-zinc-500 mb-3 bg-zinc-900/40 p-2 rounded-lg border border-zinc-800/30">
+                        <MapPin className="w-3.5 h-3.5 text-zinc-600 shrink-0 mt-0.5" />
+                        <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed" title={order.customerAddress}>
+                          {order.customerAddress || 'No address provided'}
+                        </p>
+                      </div>
+                      
+                      {/* Product Details Block */}
                       <div className="p-2 bg-[#0A0A0A] rounded-lg border border-zinc-800/50 mb-3">
                         <p className="text-xs text-zinc-400 truncate">{order.productName}</p>
                       </div>
