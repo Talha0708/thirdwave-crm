@@ -45,15 +45,19 @@ app.get('/api', (req, res) => {
     });
 });
 
-// 💥💥 THE FIX: VERCEL 404 SOLVER (REACT FRONTEND SERVER) 💥💥
-// ফোল্ডারের নাম 'frontend' এবং Vite-এর বিল্ড ফোল্ডার 'dist' পাথ সেট করা হলো
+// 💥💥 THE FIX: VERCEL 404 & 500 CRASH SOLVER (EXPRESS 5 SAFE) 💥💥
 const frontendPath = path.join(__dirname, '../frontend/dist');
 
 // স্ট্যাটিক ফাইলগুলো সার্ভ করা
 app.use(express.static(frontendPath));
 
-// API বাদে অন্য যেকোনো লিংকে রিলোড দিলে React-এর index.html পাঠিয়ে দেওয়া
-app.get('*', (req, res) => {
+// '*' চিহ্নের বদলে গ্লোবাল মিডলওয়্যার ব্যবহার করা হলো (No more crashes!)
+app.use((req, res) => {
+    // যদি কেউ ভুল API লিংকে হিট করে, তাকে JSON এরর দেবে
+    if (req.path.startsWith('/api')) {
+        return res.status(404).json({ success: false, message: 'API Route Not Found' });
+    }
+    // API বাদে অন্য যেকোনো লিংকে রিলোড দিলে React-এর index.html পাঠিয়ে দেবে
     res.sendFile(path.join(frontendPath, 'index.html'));
 });
 // 💥💥 ==================================================== 💥💥
