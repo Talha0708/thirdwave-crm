@@ -1,6 +1,7 @@
 import AiConfig from '../models/AiConfig.js';
 import Order from '../models/Order.js'; 
-import Product from '../models/Product.js'; // 💥 Product Model ইমপোর্ট করা হয়েছে
+import Product from '../models/Product.js'; 
+import PendingMessage from '../models/PendingMessage.js'; // 💥 তোর বানানো Queue মডেল ইমপোর্ট করা হলো
 import { generateAIResponse } from '../services/aiService.js';
 import { sendFacebookMessage } from '../services/facebookService.js';
 
@@ -43,13 +44,8 @@ export const receiveMessage = async (req, res) => {
                                     "integrations.facebook.isConnected": true 
                                 });
 
-                                if (!config) {
-                                    console.log(`⚠️ STOPPED: No config found for Page ID: ${pageId}`);
-                                    return;
-                                }
-
-                                if (!config.autoReply) {
-                                    console.log("⏸️ STOPPED: Auto-reply is OFF.");
+                                if (!config || !config.autoReply) {
+                                    console.log(`⚠️ STOPPED: Config missing or Auto-reply OFF for Page ID: ${pageId}`);
                                     return;
                                 }
 
@@ -72,7 +68,13 @@ export const receiveMessage = async (req, res) => {
                                 if (timeSinceLastMessage > 60000) {
                                     sub.rpmUsed = 0;
                                 } else if (sub.rpmUsed >= sub.rpmLimit) {
-                                    console.log(`⏳ THROTTLE: RPM Limit Exceeded for Page: ${pageId}`);
+                                    // 💥💥 QUEUE ENGINE: লিমিট ক্রস করলে মেসেজ ড্রপ না করে ডেটাবেসে সেভ করা হচ্ছে
+                                    console.log(`⏳ THROTTLE: RPM Limit Exceeded! Sending message to Queue...`);
+                                    await PendingMessage.create({
+                                        pageId: String(pageId),
+                                        senderPsid: String(senderPsid),
+                                        incomingText: incomingText
+                                    });
                                     return; 
                                 }
 
@@ -84,14 +86,12 @@ export const receiveMessage = async (req, res) => {
                                 console.log(`📈 Usage Update: Monthly (${sub.monthlyUsed}/${sub.monthlyLimit}) | RPM (${sub.rpmUsed}/${sub.rpmLimit})`);
                                 console.log("🧠 AI is thinking...");
 
-                                // 💥💥 CATALOG INJECTION ENGINE (ম্যাজিক এখানে) 💥💥
-                                // ডেটাবেস থেকে এই ইউজারের সব 'Active' প্রোডাক্ট তুলে আনা হচ্ছে
+                                // 💥 CATALOG INJECTION ENGINE
                                 const activeProducts = await Product.find({ 
                                     user: config.user, 
                                     status: 'Active' 
                                 });
 
-                                // প্রোডাক্টগুলোকে টেক্সট ফরম্যাটে কনভার্ট করা হচ্ছে
                                 let catalogContext = "\n\n--- INVENTORY DATA ---\nHere are the ONLY products currently available in stock:\n";
                                 if (activeProducts.length > 0) {
                                     activeProducts.forEach(p => {
@@ -102,26 +102,21 @@ export const receiveMessage = async (req, res) => {
                                 }
                                 catalogContext += "Do not offer any products or sizes that are not listed above.\n----------------------";
 
-                                // মেইন প্রম্পটের সাথে ক্যাটালগটা জুড়ে দেওয়া হলো
                                 const finalDynamicPrompt = config.systemPrompt + catalogContext;
 
-                                // এবার এআই-কে রিকোয়েস্ট পাঠানো হচ্ছে
                                 const aiReply = await generateAIResponse(incomingText, finalDynamicPrompt, []);
-                                console.log(`🤖 AI Reply Generated with Catalog Awareness!`);
+                                console.log(`🤖 AI Reply Generated!`);
                                 
-                                // 💥💥 ORDER PARSING ENGINE 💥💥
+                                // 💥 ORDER PARSING ENGINE
                                 let finalMessageToSend = aiReply;
 
                                 if (aiReply.includes('"trigger_order": true')) {
                                     try {
                                         console.log("🛒 Order trigger detected in AI response!");
-                                        
                                         const jsonMatch = aiReply.match(/\{[\s\S]*?\}/);
                                         
                                         if (jsonMatch) {
                                             const orderData = JSON.parse(jsonMatch[0]);
-                                            
-                                            // 💥 একদম তোর Order স্কিমার সাথে মিলিয়ে ডেটা পুশ করা হলো
                                             await Order.create({
                                                 user: config.user,
                                                 customerName: orderData.customer_name,
@@ -131,13 +126,11 @@ export const receiveMessage = async (req, res) => {
                                                 totalAmount: orderData.total_amount || 0,
                                                 status: 'Pending'
                                             });
-                                            
-                                            console.log("✅ Order successfully captured and saved to Database!");
-                                            
+                                            console.log("✅ Order successfully captured!");
                                             finalMessageToSend = aiReply.replace(/```json[\s\S]*?```/g, '').replace(/\{[\s\S]*?\}/g, '').trim();
                                         }
                                     } catch (parseError) {
-                                        console.error("❌ Failed to parse or save order JSON:", parseError);
+                                        console.error("❌ Failed to parse order JSON:", parseError);
                                     }
                                 }
                                 
@@ -164,12 +157,99 @@ export const receiveMessage = async (req, res) => {
     }
 };
 
+// 💥💥 THE CRON JOB PROCESSOR (Fully Functional!) 💥💥
 export const processMessageQueue = async (req, res) => {
     try {
-        console.log("Cron job triggered: Processing message queue...");
-        res.status(200).json({ success: true, message: "Queue processed successfully" });
+        console.log("⏰ [CRON HIT]: Checking for pending messages...");
+
+        // ১. ফার্স্ট ইন ফার্স্ট আউট (FIFO) পদ্ধতিতে ২০টা মেসেজ নিয়ে আসা
+        const pendingMessages = await PendingMessage.find({ status: 'pending' })
+            .sort({ createdAt: 1 })
+            .limit(20);
+
+        if (pendingMessages.length === 0) {
+            return res.status(200).json({ success: true, message: "No pending messages." });
+        }
+
+        console.log(`🚀 Processing ${pendingMessages.length} queued messages...`);
+
+        // ২. ডাবল প্রসেসিং এড়ানোর জন্য এদের স্ট্যাটাস 'processing' করে দেওয়া
+        const messageIds = pendingMessages.map(msg => msg._id);
+        await PendingMessage.updateMany(
+            { _id: { $in: messageIds } },
+            { $set: { status: 'processing' } }
+        );
+
+        // ৩. লুপ চালিয়ে প্রতিটি মেসেজ প্রসেস করা
+        for (let msg of pendingMessages) {
+            try {
+                const config = await AiConfig.findOne({ 
+                    "integrations.facebook.pageId": msg.pageId,
+                    "integrations.facebook.isConnected": true 
+                });
+
+                if (!config || !config.autoReply) {
+                    await PendingMessage.findByIdAndDelete(msg._id); // কনফিগ না থাকলে ডিলিট
+                    continue;
+                }
+
+                // কিউ এর মেসেজের জন্যও ক্যাটালগ ফেচ করা
+                const activeProducts = await Product.find({ user: config.user, status: 'Active' });
+                let catalogContext = "\n\n--- INVENTORY DATA ---\nHere are the ONLY products currently available in stock:\n";
+                if (activeProducts.length > 0) {
+                    activeProducts.forEach(p => {
+                        catalogContext += `- ${p.name} (Category: ${p.category}, Price: ৳${p.price}, Sizes: ${p.sizes.join(', ')})\n`;
+                    });
+                } else {
+                    catalogContext += "Currently, no products are available in stock.\n";
+                }
+                catalogContext += "Do not offer any products or sizes that are not listed above.\n----------------------";
+
+                const finalDynamicPrompt = config.systemPrompt + catalogContext;
+
+                // এআই রেসপন্স জেনারেট
+                const aiReply = await generateAIResponse(msg.incomingText, finalDynamicPrompt, []);
+                
+                // অর্ডার হ্যান্ডলিং
+                let finalMessageToSend = aiReply;
+                if (aiReply.includes('"trigger_order": true')) {
+                    try {
+                        const jsonMatch = aiReply.match(/\{[\s\S]*?\}/);
+                        if (jsonMatch) {
+                            const orderData = JSON.parse(jsonMatch[0]);
+                            await Order.create({
+                                user: config.user,
+                                customerName: orderData.customer_name,
+                                customerPhone: orderData.customer_phone,
+                                customerAddress: orderData.customer_address,
+                                productName: orderData.order_items,
+                                totalAmount: orderData.total_amount || 0,
+                                status: 'Pending'
+                            });
+                            finalMessageToSend = aiReply.replace(/```json[\s\S]*?```/g, '').replace(/\{[\s\S]*?\}/g, '').trim();
+                        }
+                    } catch (e) {
+                        console.error("Queue Parse Error:", e);
+                    }
+                }
+
+                // ফেসবুকে সেন্ড করা
+                await sendFacebookMessage(msg.senderPsid, finalMessageToSend, config.integrations.facebook.accessToken);
+
+                // ৪. কাজ শেষ, কিউ থেকে ডিলিট করে দেওয়া
+                await PendingMessage.findByIdAndDelete(msg._id);
+                console.log(`✅ Message processed and removed from queue.`);
+
+            } catch (innerError) {
+                console.error(`❌ Failed to process message ${msg._id}:`, innerError);
+                // কোনো কারণে ফেইল করলে আবার 'pending' করে দেওয়া, যাতে পরের ক্রনে ট্রাই মারে
+                await PendingMessage.findByIdAndUpdate(msg._id, { status: 'pending' });
+            }
+        }
+
+        res.status(200).json({ success: true, message: `Processed ${pendingMessages.length} queued messages.` });
     } catch (error) {
-        console.error("Queue Processing Error:", error);
-        res.status(500).json({ success: false, error: "Failed to process queue" });
+        console.error("❌ Cron Processing Error:", error);
+        res.status(500).json({ success: false, error: "Failed to execute cron tasks." });
     }
 };
