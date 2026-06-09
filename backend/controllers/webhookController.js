@@ -5,7 +5,11 @@ import PendingMessage from '../models/PendingMessage.js';
 import { generateAIResponse } from '../services/aiService.js';
 import { sendFacebookMessage } from '../services/facebookService.js';
 
-const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || "thirdwave_secure_token_2026";
+// 💥 FIX 6: Security - No hardcoded fallback token
+const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN;
+if (!VERIFY_TOKEN) {
+    console.error("🚨 CRITICAL ERROR: META_VERIFY_TOKEN is missing in environment variables!");
+}
 
 export const verifyWebhook = (req, res) => {
     const mode = req.query['hub.mode'];
@@ -20,7 +24,6 @@ export const verifyWebhook = (req, res) => {
     }
 };
 
-// 💥 ১. WEBHOOK RECEIVER: শুধু মেসেজ রিসিভ করে Queue-তে ঢোকাবে (No Direct Reply)
 export const receiveMessage = async (req, res) => {
     try {
         const body = req.body;
@@ -36,23 +39,22 @@ export const receiveMessage = async (req, res) => {
                         const senderPsid = webhook_event.sender.id;
                         const incomingText = webhook_event.message.text;
                         
-                        console.log(`📩 [INCOMING] Message pushed to Queue - Page: ${pageId} | User: ${senderPsid}`);
+                        console.log(`📩 [QUEUE PUSH] Page: ${pageId} | User: ${senderPsid}`);
 
-                        // মেসেজ সোজা ডাটাবেস লাইনে (Queue) চলে যাবে
-                        const addToQueue = PendingMessage.create({
-                            pageId: String(pageId),
-                            senderPsid: String(senderPsid),
-                            incomingText: incomingText,
-                            status: 'pending'
-                        });
-                        
-                        queuePromises.push(addToQueue);
+                        queuePromises.push(
+                            PendingMessage.create({
+                                pageId: String(pageId),
+                                senderPsid: String(senderPsid),
+                                incomingText: incomingText,
+                                status: 'pending'
+                            })
+                        );
                     }
                 });
             });
 
             await Promise.all(queuePromises);
-            res.status(200).send('EVENT_RECEIVED'); // ফেসবুককে সাথে সাথে OK বলে দেওয়া
+            res.status(200).send('EVENT_RECEIVED');
         } else {
             res.sendStatus(404);
         }
@@ -62,121 +64,204 @@ export const receiveMessage = async (req, res) => {
     }
 };
 
-// 💥 ২. CRON JOB PROCESSOR: লাইন থেকে ডাইনামিক লিমিট অনুযায়ী মেসেজ প্রসেস করবে
+// 💥 Helper Function: Array Chunking for Concurrency Limit
+const chunkArray = (array, size) => {
+    return Array.from({ length: Math.ceil(array.length / size) }, (v, i) =>
+        array.slice(i * size, i * size + size)
+    );
+};
+
 export const processMessageQueue = async (req, res) => {
     try {
-        console.log("⏰ [CRON HIT]: Checking for pending messages strictly by serial...");
+        console.log("⏰ [CRON HIT]: Executing Enterprise Queue Processor...");
 
-        // FIFO: সবচেয়ে পুরনো ৫০টা মেসেজ ডাটাবেস থেকে টানবে
-        const pendingMessages = await PendingMessage.find({ status: 'pending' })
-            .sort({ createdAt: 1 })
-            .limit(50);
+        // ==========================================
+        // 💥 FIX 1: ATOMIC LOCK (Zero Race Condition)
+        // ==========================================
+        const lockedMessages = [];
+        const BATCH_SIZE = 50;
 
-        if (pendingMessages.length === 0) {
+        // findOneAndUpdate দিয়ে একটা একটা করে লক করছি, যেন অন্য ক্রন জব ওভারল্যাপ না করে
+        for (let i = 0; i < BATCH_SIZE; i++) {
+            const lockedMsg = await PendingMessage.findOneAndUpdate(
+                { status: 'pending' },
+                { $set: { status: 'processing' } },
+                { sort: { createdAt: 1 }, new: true }
+            );
+            if (!lockedMsg) break; // আর কোনো পেন্ডিং মেসেজ নেই
+            lockedMessages.push(lockedMsg);
+        }
+
+        if (lockedMessages.length === 0) {
             return res.status(200).json({ success: true, message: "No pending messages." });
         }
 
-        let processedCount = 0;
+        // ==========================================
+        // BATCH DB LOAD (Config & Product) - OK
+        // ==========================================
+        const uniquePageIds = [...new Set(lockedMessages.map(m => m.pageId))];
 
-        for (let msg of pendingMessages) {
-            try {
-                // পেজের কনফিগ তুলে আনছি
-                const config = await AiConfig.findOne({ 
-                    "integrations.facebook.pageId": msg.pageId,
-                    "integrations.facebook.isConnected": true 
-                });
+        const configs = await AiConfig.find({
+            "integrations.facebook.pageId": { $in: uniquePageIds },
+            "integrations.facebook.isConnected": true
+        });
 
-                // কনফিগ না থাকলে বা অটো-রিপ্লাই অফ থাকলে কিউ থেকে ডিলিট
-                if (!config || !config.autoReply) {
-                    await PendingMessage.findByIdAndDelete(msg._id); 
-                    continue;
-                }
-
-                const now = new Date();
-                const sub = config.subscription;
-
-                // 💥 ম্যাজিক: লাস্ট মেসেজের পর ১ মিনিট পার হলে লিমিট জিরো (0) করো
-                const timeSinceLastMessage = now.getTime() - new Date(sub.lastMessageTimestamp).getTime();
-                if (timeSinceLastMessage > 60000) {
-                    sub.rpmUsed = 0; 
-                }
-
-                // 💥 লিমিট চেক: ইউজারের প্ল্যান অনুযায়ী (৩, ৭, ১২ RPM) চেক করবে
-                if (sub.rpmUsed >= sub.rpmLimit) {
-                    // লিমিট শেষ হলে মেসেজ স্কিপ করে লাইনেই রেখে দেবে
-                    continue; 
-                }
-
-                // লিমিট আছে, তাই কাজ শুরু! স্ট্যাটাস লক করলাম ডাবল প্রসেসিং এড়াতে
-                msg.status = 'processing';
-                await msg.save();
-
-                // লিমিট ১ বাড়িয়ে দিলাম
-                sub.rpmUsed += 1;
-                sub.monthlyUsed += 1;
-                sub.lastMessageTimestamp = now;
-                await config.save();
-
-                // --- CATALOG INJECTION ENGINE ---
-                const activeProducts = await Product.find({ user: config.user, status: 'Active' });
-                let catalogContext = "\n\n--- INVENTORY DATA ---\nHere are the ONLY products currently available in stock:\n";
-                if (activeProducts.length > 0) {
-                    activeProducts.forEach(p => {
-                        catalogContext += `- ${p.name} (Category: ${p.category}, Price: ৳${p.price}, Sizes: ${p.sizes.join(', ')})\n`;
-                    });
-                } else {
-                    catalogContext += "Currently, no products are available in stock.\n";
-                }
-                catalogContext += "Do not offer any products or sizes that are not listed above.\n----------------------";
-
-                const finalDynamicPrompt = config.systemPrompt + catalogContext;
-
-                console.log(`🧠 AI processing message for user: ${msg.senderPsid} (RPM Used: ${sub.rpmUsed}/${sub.rpmLimit})`);
-                
-                // এআই রেসপন্স জেনারেট
-                const aiReply = await generateAIResponse(msg.incomingText, finalDynamicPrompt, []);
-                
-                // --- ORDER PARSING ENGINE ---
-                let finalMessageToSend = aiReply;
-                if (aiReply.includes('"trigger_order": true')) {
-                    try {
-                        const jsonMatch = aiReply.match(/\{[\s\S]*?\}/);
-                        if (jsonMatch) {
-                            const orderData = JSON.parse(jsonMatch[0]);
-                            await Order.create({
-                                user: config.user,
-                                customerName: orderData.customer_name,
-                                customerPhone: orderData.customer_phone,
-                                customerAddress: orderData.customer_address,
-                                productName: orderData.order_items,
-                                totalAmount: orderData.total_amount || 0,
-                                status: 'Pending'
-                            });
-                            console.log("✅ Order successfully captured!");
-                            finalMessageToSend = aiReply.replace(/```json[\s\S]*?```/g, '').replace(/\{[\s\S]*?\}/g, '').trim();
-                        }
-                    } catch (e) {
-                        console.error("Queue Parse Error:", e);
-                    }
-                }
-
-                // ফেসবুকে মেসেজ সেন্ড করা
-                await sendFacebookMessage(msg.senderPsid, finalMessageToSend, config.integrations.facebook.accessToken);
-
-                // কাজ শেষ, ডাটাবেসের লাইন থেকে মেসেজ মুছে ফেলা
-                await PendingMessage.findByIdAndDelete(msg._id);
-                processedCount++;
-
-            } catch (innerError) {
-                console.error(`❌ Failed to process message ${msg._id}:`, innerError);
-                // কোনো কারণে এরর খেলে আবার লাইনে দাঁড় করিয়ে দেওয়া
-                await PendingMessage.findByIdAndUpdate(msg._id, { status: 'pending' });
+        const configMap = {};
+        const uniqueUserIds = [];
+        configs.forEach(cfg => {
+            configMap[cfg.integrations.facebook.pageId] = cfg;
+            if (!uniqueUserIds.includes(cfg.user.toString())) {
+                uniqueUserIds.push(cfg.user.toString());
             }
+        });
+
+        const products = await Product.find({
+            user: { $in: uniqueUserIds },
+            status: 'Active'
+        });
+
+        const productMap = {};
+        products.forEach(p => {
+            const uId = p.user.toString();
+            if (!productMap[uId]) productMap[uId] = [];
+            productMap[uId].push(p);
+        });
+
+        // ==========================================
+        // 💥 FIX 2: IN-MEMORY RPM (Fixed Minute Window)
+        // ==========================================
+        const messagesToProcess = [];
+        const configUpdates = new Map();
+        
+        const now = new Date();
+        const currentMinute = new Date(now).setSeconds(0, 0); // বর্তমান মিনিটের শুরু
+
+        for (let msg of lockedMessages) {
+            let config = configUpdates.get(msg.pageId) || configMap[msg.pageId];
+
+            if (!config || !config.autoReply) {
+                // 💥 FIX 4: Catch errors on fire-and-forget deletes
+                PendingMessage.findByIdAndDelete(msg._id).catch(err => console.error("Zombie delete error:", err));
+                continue;
+            }
+
+            const sub = config.subscription;
+
+            if (sub.expiryDate && new Date(sub.expiryDate) < now) {
+                PendingMessage.findByIdAndUpdate(msg._id, { status: 'pending' }).catch(err => console.error("Unlock error:", err));
+                continue;
+            }
+
+            // Fixed Window Reset: লাস্ট মেসেজ যদি এই মিনিটের আগে হয়, তাহলে RPM জিরো করো
+            const lastMsgMinute = new Date(sub.lastMessageTimestamp || 0).setSeconds(0, 0);
+            if (lastMsgMinute < currentMinute) {
+                sub.rpmUsed = 0;
+            }
+
+            if (sub.rpmUsed >= sub.rpmLimit || sub.monthlyUsed >= sub.monthlyLimit) {
+                PendingMessage.findByIdAndUpdate(msg._id, { status: 'pending' }).catch(err => console.error("Unlock error:", err));
+                continue;
+            }
+
+            sub.rpmUsed += 1;
+            sub.monthlyUsed += 1;
+            sub.lastMessageTimestamp = now;
+            
+            configUpdates.set(msg.pageId, config);
+            messagesToProcess.push({ msg, config });
         }
 
-        res.status(200).json({ success: true, message: `Processed ${processedCount} queued messages successfully.` });
+        // Bulk config update
+        if (configUpdates.size > 0) {
+            const bulkConfigOps = Array.from(configUpdates.values()).map(cfg => ({
+                updateOne: {
+                    filter: { _id: cfg._id },
+                    update: { $set: {
+                        "subscription.rpmUsed": cfg.subscription.rpmUsed,
+                        "subscription.monthlyUsed": cfg.subscription.monthlyUsed,
+                        "subscription.lastMessageTimestamp": cfg.subscription.lastMessageTimestamp
+                    }}
+                }
+            }));
+            await AiConfig.bulkWrite(bulkConfigOps);
+        }
+
+        // ==========================================
+        // 💥 FIX 5: CONCURRENCY LIMIT (Chunking)
+        // ==========================================
+        console.log(`🚀 Dispatching ${messagesToProcess.length} messages (Max 10 per batch)...`);
+        
+        const CONCURRENCY_LIMIT = 10;
+        const chunks = chunkArray(messagesToProcess, CONCURRENCY_LIMIT);
+
+        for (const chunk of chunks) {
+            await Promise.all(chunk.map(async ({ msg, config }) => {
+                try {
+                    const uId = config.user.toString();
+                    const activeProducts = productMap[uId] || [];
+
+                    let catalogContext = "\n\n--- INVENTORY DATA ---\nHere are the ONLY products currently available in stock:\n";
+                    if (activeProducts.length > 0) {
+                        activeProducts.forEach(p => {
+                            catalogContext += `- ${p.name} (Category: ${p.category}, Price: ৳${p.price}, Sizes: ${p.sizes.join(', ')})\n`;
+                        });
+                    } else {
+                        catalogContext += "Currently, no products are available in stock.\n";
+                    }
+                    catalogContext += "\nCRITICAL RULE: Reply ONLY with valid JSON if triggering an order. Do not wrap JSON in markdown.\n----------------------";
+
+                    const finalDynamicPrompt = config.systemPrompt + catalogContext;
+
+                    const aiReply = await generateAIResponse(msg.incomingText, finalDynamicPrompt, []);
+                    
+                    let finalMessageToSend = aiReply;
+
+                    // ==========================================
+                    // 💥 FIX 3: BULLETPROOF JSON PARSING
+                    // ==========================================
+                    if (aiReply.includes('"trigger_order": true') || aiReply.includes('{')) {
+                        try {
+                            const jsonStart = aiReply.indexOf('{');
+                            const jsonEnd = aiReply.lastIndexOf('}');
+                            
+                            if (jsonStart !== -1 && jsonEnd !== -1) {
+                                const jsonString = aiReply.substring(jsonStart, jsonEnd + 1);
+                                const orderData = JSON.parse(jsonString);
+                                
+                                if (orderData.trigger_order) {
+                                    await Order.create({
+                                        user: config.user,
+                                        customerName: orderData.customer_name,
+                                        customerPhone: orderData.customer_phone,
+                                        customerAddress: orderData.customer_address,
+                                        productName: orderData.order_items,
+                                        totalAmount: orderData.total_amount || 0,
+                                        status: 'Pending'
+                                    });
+                                    // Remove JSON from the reply string to send only the text to the user
+                                    finalMessageToSend = aiReply.replace(jsonString, '').replace(/```json|```/g, '').trim();
+                                }
+                            }
+                        } catch (e) {
+                            console.error("Order Parsing Error:", e);
+                        }
+                    }
+
+                    await sendFacebookMessage(msg.senderPsid, finalMessageToSend, config.integrations.facebook.accessToken);
+
+                    // 💥 FIX 4: Await the delete to avoid zombie messages
+                    await PendingMessage.findByIdAndDelete(msg._id);
+
+                } catch (err) {
+                    console.error(`❌ Thread failed for msg ${msg._id}:`, err);
+                    await PendingMessage.findByIdAndUpdate(msg._id, { status: 'pending' }).catch(e => console.error("Revert error:", e));
+                }
+            }));
+        }
+
+        res.status(200).json({ success: true, message: `Processed ${messagesToProcess.length} messages smoothly.` });
     } catch (error) {
-        console.error("❌ Cron Processing Error:", error);
+        console.error("❌ Extreme Scale Cron Error:", error);
         res.status(500).json({ success: false, error: "Failed to execute cron tasks." });
     }
 };
