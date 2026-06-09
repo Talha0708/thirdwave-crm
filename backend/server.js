@@ -8,7 +8,7 @@ import authRoutes from './routes/authRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import clientRoutes from './routes/clientRoutes.js'; 
 import productRoutes from './routes/productRoutes.js'; 
-import orderRoutes from './routes/orderRoutes.js'; // 💥 NEW: Order Route ইমপোর্ট করা হলো
+import orderRoutes from './routes/orderRoutes.js';
 import aiConfigRoutes from './routes/aiConfigRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
@@ -32,19 +32,31 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/client', clientRoutes); 
 app.use('/api/products', productRoutes); 
-app.use('/api/orders', orderRoutes); // 💥 NEW: Order Route কানেক্ট করা হলো (এটাই 404 সলভ করবে!)
+app.use('/api/orders', orderRoutes); 
 app.use('/api/ai-config', aiConfigRoutes);
-app.use('/api/customers', customerRoutes); // 💥 NEW
-app.use('/api/webhook', webhookRoutes); // 💥 NEW: Facebook Webhook
-
+app.use('/api/customers', customerRoutes); 
+app.use('/api/webhook', webhookRoutes); 
 
 // বেসিক টেস্টিং রাউট
 app.get('/api', (req, res) => {
     res.json({ 
         status: 'success',
-        message: 'Welcome to Thirdwave CRM API Engine 🚀 (Vercel Ready)' 
+        message: 'Welcome to ThirdWave Software Ltd. API Engine 🚀 (Vercel Ready)' 
     });
 });
+
+// 💥💥 THE FIX: VERCEL 404 SOLVER (REACT FRONTEND SERVER) 💥💥
+// ফোল্ডারের নাম 'frontend' এবং Vite-এর বিল্ড ফোল্ডার 'dist' পাথ সেট করা হলো
+const frontendPath = path.join(__dirname, '../frontend/dist');
+
+// স্ট্যাটিক ফাইলগুলো সার্ভ করা
+app.use(express.static(frontendPath));
+
+// API বাদে অন্য যেকোনো লিংকে রিলোড দিলে React-এর index.html পাঠিয়ে দেওয়া
+app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+});
+// 💥💥 ==================================================== 💥💥
 
 // লোকাল পিসিতে টেস্ট করার জন্য
 if (process.env.NODE_ENV !== 'production') {
