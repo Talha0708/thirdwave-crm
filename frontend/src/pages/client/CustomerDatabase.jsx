@@ -88,11 +88,9 @@ const CustomerDatabase = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-sm border border-indigo-500/20">
-                            {/* 💥 Updated to customerName */}
                             {(customer.customerName || 'U').charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            {/* 💥 Updated to customerName */}
                             <div className="text-sm font-medium text-zinc-200">{customer.customerName || 'Unknown'}</div>
                             <div className="text-xs text-zinc-500 flex items-center gap-1 mt-1">
                               <Calendar className="w-3 h-3" /> Last order: {customer.lastOrderDate ? new Date(customer.lastOrderDate).toLocaleDateString('en-GB') : 'N/A'}
@@ -102,15 +100,14 @@ const CustomerDatabase = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-zinc-300 flex items-center gap-2">
-                          {/* 💥 Updated to customerPhone */}
                           <Phone className="w-4 h-4 text-zinc-500" /> {customer.customerPhone || 'N/A'}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-zinc-400 flex items-center gap-2 truncate max-w-[200px]" title={customer.customerAddress}>
-                          <MapPin className="w-4 h-4 text-zinc-500 flex-shrink-0" /> 
-                          {/* 💥 Updated to customerAddress */}
-                          <span className="truncate">{customer.customerAddress || 'N/A'}</span>
+                      {/* 💥 Location Column Updated: Now supports full address wrapping */}
+                      <td className="px-6 py-4 whitespace-normal">
+                        <div className="text-sm text-zinc-400 flex items-start gap-2 max-w-[250px]">
+                          <MapPin className="w-4 h-4 text-zinc-500 flex-shrink-0 mt-0.5" /> 
+                          <span className="break-words leading-relaxed">{customer.customerAddress || 'No address provided'}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
