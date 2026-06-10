@@ -4,8 +4,9 @@ import Product from '../models/Product.js';
 import PendingMessage from '../models/PendingMessage.js'; 
 import { generateAIResponse } from '../services/aiService.js';
 import { sendFacebookMessage } from '../services/facebookService.js';
+// 💥 NEW: WhatsApp Service ইমপোর্ট করা হলো (আমরা নেক্সট ধাপে এই ফাইলটা বানাব)
+import { sendWhatsAppMessage } from '../services/whatsappService.js';
 
-// 💥 FIX 6: Security - No hardcoded fallback token
 const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN;
 if (!VERIFY_TOKEN) {
     console.error("🚨 CRITICAL ERROR: META_VERIFY_TOKEN is missing in environment variables!");
@@ -27,10 +28,10 @@ export const verifyWebhook = (req, res) => {
 export const receiveMessage = async (req, res) => {
     try {
         const body = req.body;
+        const queuePromises = [];
 
+        // 🔵 ১. FACEBOOK MESSENGER LOGIC
         if (body.object === 'page') {
-            const queuePromises = [];
-
             body.entry.forEach((entry) => {
                 const pageId = entry.id;
                 
@@ -39,14 +40,15 @@ export const receiveMessage = async (req, res) => {
                         const senderPsid = webhook_event.sender.id;
                         const incomingText = webhook_event.message.text;
                         
-                        console.log(`📩 [QUEUE PUSH] Page: ${pageId} | User: ${senderPsid}`);
+                        console.log(`🔵 [FB QUEUE PUSH] Page: ${pageId} | User: ${senderPsid}`);
 
                         queuePromises.push(
                             PendingMessage.create({
                                 pageId: String(pageId),
                                 senderPsid: String(senderPsid),
                                 incomingText: incomingText,
-                                status: 'pending'
+                                status: 'pending',
+                                platform: 'facebook' // প্ল্যাটফর্ম ট্যাগ
                             })
                         );
                     }
@@ -55,7 +57,41 @@ export const receiveMessage = async (req, res) => {
 
             await Promise.all(queuePromises);
             res.status(200).send('EVENT_RECEIVED');
-        } else {
+        } 
+        
+        // 🟢 ২. WHATSAPP CLOUD API LOGIC
+        else if (body.object === 'whatsapp_business_account') {
+            body.entry.forEach((entry) => {
+                entry.changes.forEach((change) => {
+                    if (change.value && change.value.messages) {
+                        change.value.messages.forEach((message) => {
+                            if (message.type === 'text') {
+                                const senderPhone = message.from; 
+                                const incomingText = message.text.body;
+                                const phoneId = change.value.metadata.phone_number_id; 
+
+                                console.log(`🟢 [WA QUEUE PUSH] PhoneID: ${phoneId} | User: ${senderPhone}`);
+
+                                queuePromises.push(
+                                    PendingMessage.create({
+                                        pageId: String(phoneId),
+                                        senderPsid: String(senderPhone),
+                                        incomingText: incomingText,
+                                        status: 'pending',
+                                        platform: 'whatsapp' // প্ল্যাটফর্ম ট্যাগ
+                                    })
+                                );
+                            }
+                        });
+                    }
+                });
+            });
+
+            await Promise.all(queuePromises);
+            res.status(200).send('EVENT_RECEIVED');
+        } 
+        
+        else {
             res.sendStatus(404);
         }
     } catch (error) {
@@ -64,7 +100,6 @@ export const receiveMessage = async (req, res) => {
     }
 };
 
-// 💥 Helper Function: Array Chunking for Concurrency Limit
 const chunkArray = (array, size) => {
     return Array.from({ length: Math.ceil(array.length / size) }, (v, i) =>
         array.slice(i * size, i * size + size)
@@ -75,20 +110,16 @@ export const processMessageQueue = async (req, res) => {
     try {
         console.log("⏰ [CRON HIT]: Executing Enterprise Queue Processor...");
 
-        // ==========================================
-        // 💥 FIX 1: ATOMIC LOCK (Zero Race Condition)
-        // ==========================================
         const lockedMessages = [];
         const BATCH_SIZE = 50;
 
-        // findOneAndUpdate দিয়ে একটা একটা করে লক করছি, যেন অন্য ক্রন জব ওভারল্যাপ না করে
         for (let i = 0; i < BATCH_SIZE; i++) {
             const lockedMsg = await PendingMessage.findOneAndUpdate(
                 { status: 'pending' },
                 { $set: { status: 'processing' } },
                 { sort: { createdAt: 1 }, new: true }
             );
-            if (!lockedMsg) break; // আর কোনো পেন্ডিং মেসেজ নেই
+            if (!lockedMsg) break; 
             lockedMessages.push(lockedMsg);
         }
 
@@ -96,20 +127,23 @@ export const processMessageQueue = async (req, res) => {
             return res.status(200).json({ success: true, message: "No pending messages." });
         }
 
-        // ==========================================
-        // BATCH DB LOAD (Config & Product) - OK
-        // ==========================================
         const uniquePageIds = [...new Set(lockedMessages.map(m => m.pageId))];
 
+        // 💥 FIX: Facebook এবং WhatsApp দুইটারই Config খোঁজার লজিক
         const configs = await AiConfig.find({
-            "integrations.facebook.pageId": { $in: uniquePageIds },
-            "integrations.facebook.isConnected": true
+            $or: [
+                { "integrations.facebook.pageId": { $in: uniquePageIds } },
+                { "integrations.whatsapp.phoneId": { $in: uniquePageIds } }
+            ]
         });
 
         const configMap = {};
         const uniqueUserIds = [];
         configs.forEach(cfg => {
-            configMap[cfg.integrations.facebook.pageId] = cfg;
+            // ফেসবুক বা হোয়াটসঅ্যাপ যেটার আইডি দিয়ে আসুক, সেটা ম্যাপে সেভ করবে
+            if (cfg.integrations?.facebook?.pageId) configMap[cfg.integrations.facebook.pageId] = cfg;
+            if (cfg.integrations?.whatsapp?.phoneId) configMap[cfg.integrations.whatsapp.phoneId] = cfg;
+            
             if (!uniqueUserIds.includes(cfg.user.toString())) {
                 uniqueUserIds.push(cfg.user.toString());
             }
@@ -127,20 +161,16 @@ export const processMessageQueue = async (req, res) => {
             productMap[uId].push(p);
         });
 
-        // ==========================================
-        // 💥 FIX 2: IN-MEMORY RPM (Fixed Minute Window)
-        // ==========================================
         const messagesToProcess = [];
         const configUpdates = new Map();
         
         const now = new Date();
-        const currentMinute = new Date(now).setSeconds(0, 0); // বর্তমান মিনিটের শুরু
+        const currentMinute = new Date(now).setSeconds(0, 0); 
 
         for (let msg of lockedMessages) {
             let config = configUpdates.get(msg.pageId) || configMap[msg.pageId];
 
             if (!config || !config.autoReply) {
-                // 💥 FIX 4: Catch errors on fire-and-forget deletes
                 PendingMessage.findByIdAndDelete(msg._id).catch(err => console.error("Zombie delete error:", err));
                 continue;
             }
@@ -152,7 +182,6 @@ export const processMessageQueue = async (req, res) => {
                 continue;
             }
 
-            // Fixed Window Reset: লাস্ট মেসেজ যদি এই মিনিটের আগে হয়, তাহলে RPM জিরো করো
             const lastMsgMinute = new Date(sub.lastMessageTimestamp || 0).setSeconds(0, 0);
             if (lastMsgMinute < currentMinute) {
                 sub.rpmUsed = 0;
@@ -171,7 +200,6 @@ export const processMessageQueue = async (req, res) => {
             messagesToProcess.push({ msg, config });
         }
 
-        // Bulk config update
         if (configUpdates.size > 0) {
             const bulkConfigOps = Array.from(configUpdates.values()).map(cfg => ({
                 updateOne: {
@@ -186,9 +214,6 @@ export const processMessageQueue = async (req, res) => {
             await AiConfig.bulkWrite(bulkConfigOps);
         }
 
-        // ==========================================
-        // 💥 FIX 5: CONCURRENCY LIMIT (Chunking)
-        // ==========================================
         console.log(`🚀 Dispatching ${messagesToProcess.length} messages (Max 10 per batch)...`);
         
         const CONCURRENCY_LIMIT = 10;
@@ -216,9 +241,6 @@ export const processMessageQueue = async (req, res) => {
                     
                     let finalMessageToSend = aiReply;
 
-                    // ==========================================
-                    // 💥 FIX 3: BULLETPROOF JSON PARSING
-                    // ==========================================
                     if (aiReply.includes('"trigger_order": true') || aiReply.includes('{')) {
                         try {
                             const jsonStart = aiReply.indexOf('{');
@@ -238,7 +260,6 @@ export const processMessageQueue = async (req, res) => {
                                         totalAmount: orderData.total_amount || 0,
                                         status: 'Pending'
                                     });
-                                    // Remove JSON from the reply string to send only the text to the user
                                     finalMessageToSend = aiReply.replace(jsonString, '').replace(/```json|```/g, '').trim();
                                 }
                             }
@@ -247,9 +268,16 @@ export const processMessageQueue = async (req, res) => {
                         }
                     }
 
-                    await sendFacebookMessage(msg.senderPsid, finalMessageToSend, config.integrations.facebook.accessToken);
+                    // 💥 FIX: Platform চেক করে সঠিক জায়গায় মেসেজ পাঠানো
+                    if (msg.platform === 'whatsapp') {
+                        // হোয়াটসঅ্যাপের ক্ষেত্রে ফোন আইডি এবং এক্সেস টোকেন লাগবে
+                        const waToken = config.integrations?.whatsapp?.accessToken || process.env.WHATSAPP_TOKEN;
+                        await sendWhatsAppMessage(msg.senderPsid, finalMessageToSend, waToken, msg.pageId);
+                    } else {
+                        // ফেসবুকের ক্ষেত্রে
+                        await sendFacebookMessage(msg.senderPsid, finalMessageToSend, config.integrations.facebook.accessToken);
+                    }
 
-                    // 💥 FIX 4: Await the delete to avoid zombie messages
                     await PendingMessage.findByIdAndDelete(msg._id);
 
                 } catch (err) {
