@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-export const generateAIResponse = async (customerMessage, systemPrompt, products = []) => {
+// 💥 FIX: ৩ নম্বর প্যারামিটারে products এর জায়গায় historyArray রিসিভ করা হচ্ছে
+export const generateAIResponse = async (customerMessage, systemPrompt, historyArray = []) => {
     try {
         // চেক করা যে .env ফাইলে API Key বসানো আছে কি না
         if (!process.env.GEMINI_API_KEY) {
@@ -8,27 +9,31 @@ export const generateAIResponse = async (customerMessage, systemPrompt, products
             return "System Error: AI Engine is not configured yet.";
         }
 
-        // Gemini ইনিশিয়ালাইজ করা (gemini-1.5-flash সবচেয়ে ফাস্ট এবং লেটেস্ট)
+        // Gemini ইনিশিয়ালাইজ করা
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" }) 
-        // 💥 AI-এর জন্য মাস্টার প্রম্পট (Instruction) রেডি কর
+        
+        // 💥 FIX: তোর লেটেস্ট মডেল এবং সিস্টেম ইনস্ট্রাকশন (যার ভেতরে অলরেডি প্রোডাক্ট ক্যাটালগ আছে)
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-3.1-flash-lite", 
+            systemInstruction: systemPrompt 
+        });
 
-        let fullPrompt = `${systemPrompt}\n\n`;
+        let contents = [];
 
-        // যদি ডেটাবেসে প্রোডাক্ট থাকে, তবে সেগুলো AI-কে জানিয়ে দেওয়া
-        if (products && products.length > 0) {
-            fullPrompt += `Here is your current product catalog:\n`;
-            products.forEach(p => {
-                fullPrompt += `- ${p.name}: ৳${p.price} (Category: ${p.category})\n`;
-            });
-            fullPrompt += `\nImportant: Only recommend products from the catalog above. Do not invent any new products.\n\n`;
+        // যদি ডাটাবেস থেকে হিস্ট্রি আসে (যেখানে কাস্টমারের বর্তমান মেসেজটাও অলরেডি পুশ করা আছে)
+        if (historyArray && historyArray.length > 0) {
+            contents = historyArray.map(msg => ({
+                // জেমিনাই 'assistant' চেনে না, ওর কাছে AI-এর রিপ্লাই হলো 'model'
+                role: msg.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: msg.content }]
+            }));
+        } else {
+            // যদি কোনো কারণে হিস্ট্রি না থাকে (ফলব্যাক), শুধু বর্তমান মেসেজটা পাঠাবে
+            contents = [{ role: "user", parts: [{ text: customerMessage }] }];
         }
 
-        fullPrompt += `Customer Message: "${customerMessage}"\n`;
-        fullPrompt += `Your Reply:`;
-
-        // জেমিনাইকে রিকোয়েস্ট পাঠানো এবং রিপ্লাই আনা
-        const result = await model.generateContent(fullPrompt);
+        // জেমিনাইকে রিকোয়েস্ট পাঠানো (পুরো হিস্ট্রি সহ)
+        const result = await model.generateContent({ contents });
         const response = await result.response;
         
         return response.text();
