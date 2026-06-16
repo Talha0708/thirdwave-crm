@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
-import { Search, Filter, Plus, UserPlus, Loader2, Edit, X, AlertCircle } from 'lucide-react';
+import { Search, Filter, Plus, UserPlus, Loader2, Edit, X, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
 
 const ManageClients = () => {
     const { token } = useAuth();
@@ -22,15 +22,17 @@ const ManageClients = () => {
     const [editFormData, setEditFormData] = useState({ id: '', name: '', company: '', plan: 'Basic', mrr: 500, status: 'Active' });
     const [editLoading, setEditLoading] = useState(false);
 
+    // 💥 NEW: Toggle State for BYOK API
+    const [toggling, setToggling] = useState(null);
+
     const API_URL = import.meta.env.VITE_API_URL || 'https://thirdwave-crm.vercel.app/api';
 
-    // 💥 FIXED: Business Plan added for auto-MRR calculation
     const handlePlanChange = (e, isEdit = false) => {
         const selectedPlan = e.target.value;
         let calculatedMrr = 500;
         
         if (selectedPlan.toLowerCase() === 'pro') calculatedMrr = 1200;
-        if (selectedPlan.toLowerCase() === 'business') calculatedMrr = 3000; // 💥 NEW
+        if (selectedPlan.toLowerCase() === 'business') calculatedMrr = 3000;
         if (selectedPlan.toLowerCase() === 'enterprise') calculatedMrr = 8000;
 
         if (isEdit) {
@@ -49,7 +51,7 @@ const ManageClients = () => {
             const response = await axios.get(`${API_URL}/admin/clients?t=${new Date().getTime()}`, config);
             
             if (response.data.success) {
-                setClients(response.data.data);
+                setClients(response.data.data || response.data.clients); // Adjusted fallback
             }
         } catch (error) {
             console.error("Fetch API Error:", error);
@@ -116,6 +118,28 @@ const ManageClients = () => {
         }
     };
 
+    // 💥 NEW: Handle API Key Toggle
+    const handleToggleSystemApi = async (clientId, currentStatus) => {
+        setToggling(clientId);
+        try {
+            const config = { headers: { Authorization: `Bearer ${token}` } };
+            const { data } = await axios.put(`${API_URL}/admin/clients/${clientId}/toggle-api`, { useSystemApiKey: !currentStatus }, config);
+            
+            if (data.success) {
+                setClients(clients.map(client => 
+                    client._id === clientId 
+                        ? { ...client, aiConfig: { ...(client.aiConfig || {}), useSystemApiKey: !currentStatus } } 
+                        : client
+                ));
+            }
+        } catch (error) {
+            console.error("Toggle API Error", error);
+            alert("⚠️ Failed to update System API status.");
+        } finally {
+            setToggling(null);
+        }
+    };
+
     const filteredClients = clients.filter(client => 
         client.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
         client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -123,7 +147,7 @@ const ManageClients = () => {
     );
 
     return (
-        <div className="max-w-7xl mx-auto animate-in fade-in duration-500 relative">
+        <div className="max-w-[90rem] mx-auto animate-in fade-in duration-500 relative">
             
             {/* ─── ADD Client Modal ─── */}
             {isAddModalOpen && (
@@ -159,7 +183,7 @@ const ManageClients = () => {
                                     <select value={addFormData.plan} onChange={(e) => handlePlanChange(e, false)} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500/50">
                                         <option value="Basic">Basic</option>
                                         <option value="Pro">Pro</option>
-                                        <option value="Business">Business</option> {/* 💥 FIXED */}
+                                        <option value="Business">Business</option>
                                         <option value="Enterprise">Enterprise</option>
                                     </select>
                                 </div>
@@ -201,7 +225,7 @@ const ManageClients = () => {
                                 <select value={editFormData.plan} onChange={(e) => handlePlanChange(e, true)} className="w-full bg-[#111111] border border-zinc-800 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500/50">
                                     <option value="Basic">Basic</option>
                                     <option value="Pro">Pro</option>
-                                    <option value="Business">Business</option> {/* 💥 FIXED */}
+                                    <option value="Business">Business</option>
                                     <option value="Enterprise">Enterprise</option>
                                 </select>
                             </div>
@@ -263,6 +287,8 @@ const ManageClients = () => {
                             <tr>
                                 <th className="px-6 py-4 whitespace-nowrap">Workspace / Email</th>
                                 <th className="px-6 py-4 whitespace-nowrap">Plan & MRR</th>
+                                <th className="px-6 py-4 whitespace-nowrap">API Key Status</th>
+                                <th className="px-6 py-4 whitespace-nowrap">System API (Pro)</th>
                                 <th className="px-6 py-4 whitespace-nowrap">Usage & Speed</th>
                                 <th className="px-6 py-4 whitespace-nowrap">Expiry</th>
                                 <th className="px-6 py-4 whitespace-nowrap">Status</th>
@@ -272,101 +298,136 @@ const ManageClients = () => {
                         <tbody className="divide-y divide-zinc-800/50">
                             {loading ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-12 text-center">
+                                    <td colSpan="8" className="px-6 py-12 text-center">
                                         <Loader2 className="w-6 h-6 text-indigo-500 animate-spin mx-auto mb-3" />
                                         <p className="text-zinc-500">Loading workspaces...</p>
                                     </td>
                                 </tr>
                             ) : fetchError ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-12 text-center bg-red-950/10">
+                                    <td colSpan="8" className="px-6 py-12 text-center bg-red-950/10">
                                         <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
                                         <p className="text-red-400 font-semibold text-lg">System Error Detected</p>
                                         <p className="text-zinc-400 mt-1">{fetchError}</p>
-                                        <p className="text-zinc-500 text-xs mt-2">Press F12 and check the Console for more details.</p>
                                     </td>
                                 </tr>
                             ) : filteredClients.length > 0 ? (
-                                filteredClients.map((client) => (
-                                    <tr key={client._id} className="hover:bg-zinc-900/30 transition-colors group">
-                                        
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center font-bold text-white border border-zinc-700 uppercase shadow-sm flex-shrink-0">
-                                                    {(client.company || client.name).charAt(0)}
-                                                </div>
-                                                <div>
-                                                    <p className="font-semibold text-zinc-200">{client.company || client.name}</p>
-                                                    <p className="text-xs text-zinc-500 mt-0.5">{client.email}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-col gap-1.5 items-start">
-                                                <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 text-[10px] font-bold tracking-wider uppercase border border-zinc-700">
-                                                    {client.plan || 'Basic'}
-                                                </span>
-                                                <span className="text-xs font-medium text-emerald-400">৳ {client.mrr || 0} / mo</span>
-                                            </div>
-                                        </td>
+                                filteredClients.map((client) => {
+                                    // 💥 Extract AI Config info safely
+                                    const aiConfig = client.aiConfig || {};
+                                    const hasCustomKey = !!aiConfig.clientApiKey;
+                                    const usingSystemKey = !!aiConfig.useSystemApiKey;
 
-                                        <td className="px-6 py-4">
-                                            {client.subscription ? (
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="text-xs font-medium text-white">
-                                                        {Math.max(0, client.subscription.monthlyLimit - client.subscription.monthlyUsed)} <span className="text-zinc-500">Msgs Left</span>
-                                                    </span>
-                                                    <span className="text-[10px] text-zinc-400 font-mono bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 w-fit">
-                                                        {client.subscription.rpmLimit} RPM Speed
-                                                    </span>
+                                    return (
+                                        <tr key={client._id} className="hover:bg-zinc-900/30 transition-colors group">
+                                            
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center font-bold text-white border border-zinc-700 uppercase shadow-sm flex-shrink-0">
+                                                        {(client.company || client.name).charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-semibold text-zinc-200">{client.company || client.name}</p>
+                                                        <p className="text-xs text-zinc-500 mt-0.5">{client.email}</p>
+                                                    </div>
                                                 </div>
-                                            ) : (
-                                                <span className="text-xs text-zinc-600">Pending Setup</span>
-                                            )}
-                                        </td>
+                                            </td>
+                                            
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-col gap-1.5 items-start">
+                                                    <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 text-[10px] font-bold tracking-wider uppercase border border-zinc-700">
+                                                        {client.plan || 'Basic'}
+                                                    </span>
+                                                    <span className="text-xs font-medium text-emerald-400">৳ {client.mrr || 0} / mo</span>
+                                                </div>
+                                            </td>
 
-                                        <td className="px-6 py-4 text-xs font-medium">
-                                            {client.subscription?.expiryDate ? (() => {
-                                                const days = Math.ceil((new Date(client.subscription.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
-                                                return days > 0 ? (
-                                                    <span className="text-amber-400">{days} Days Left</span>
+                                            {/* 💥 NEW: Client API Key Status */}
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                {hasCustomKey ? (
+                                                    <span className="flex items-center gap-1.5 text-emerald-400 text-xs font-medium bg-emerald-400/10 px-2.5 py-1 rounded-full border border-emerald-400/20 w-fit">
+                                                        <CheckCircle2 className="w-3.5 h-3.5" /> Added
+                                                    </span>
                                                 ) : (
-                                                    <span className="text-red-500 font-bold bg-red-500/10 px-2 py-1 rounded">Expired</span>
-                                                );
-                                            })() : (
-                                                <span className="text-zinc-600">N/A</span>
-                                            )}
-                                        </td>
+                                                    <span className="flex items-center gap-1.5 text-zinc-500 text-xs font-medium bg-zinc-800/50 px-2.5 py-1 rounded-full border border-zinc-700/50 w-fit">
+                                                        <XCircle className="w-3.5 h-3.5" /> Missing
+                                                    </span>
+                                                )}
+                                            </td>
 
-                                        <td className="px-6 py-4">
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
-                                                client.status === 'Active' ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' : 
-                                                client.status === 'Suspended' ? 'text-red-400 bg-red-400/10 border-red-400/20' : 
-                                                'text-amber-400 bg-amber-400/10 border-amber-400/20'
-                                            }`}>
-                                                <span className={`w-1.5 h-1.5 rounded-full ${
-                                                    client.status === 'Active' ? 'bg-emerald-400' : 
-                                                    client.status === 'Suspended' ? 'bg-red-400' : 'bg-amber-400'
-                                                }`}></span> 
-                                                {client.status || 'Onboarding'}
-                                            </span>
-                                        </td>
+                                            {/* 💥 NEW: System API Toggle */}
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <button 
+                                                    onClick={() => handleToggleSystemApi(client._id, usingSystemKey)}
+                                                    disabled={toggling === client._id}
+                                                    className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors focus:outline-none ${usingSystemKey ? 'bg-indigo-600' : 'bg-zinc-700'}`}
+                                                    title="Toggle Pro System API Access"
+                                                >
+                                                    {toggling === client._id ? (
+                                                        <Loader2 className="w-3 h-3 text-white animate-spin absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+                                                    ) : (
+                                                        <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${usingSystemKey ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                    )}
+                                                </button>
+                                            </td>
 
-                                        <td className="px-6 py-4 text-right">
-                                            <button 
-                                                onClick={() => openEditModal(client)} 
-                                                className="p-2 text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all"
-                                                title="Edit/Suspend Workspace"
-                                            >
-                                                <Edit className="w-4 h-4" />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))
+                                            <td className="px-6 py-4">
+                                                {client.subscription ? (
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-xs font-medium text-white">
+                                                            {Math.max(0, client.subscription.monthlyLimit - client.subscription.monthlyUsed)} <span className="text-zinc-500">Msgs Left</span>
+                                                        </span>
+                                                        <span className="text-[10px] text-zinc-400 font-mono bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 w-fit">
+                                                            {client.subscription.rpmLimit} RPM Speed
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xs text-zinc-600">Pending Setup</span>
+                                                )}
+                                            </td>
+
+                                            <td className="px-6 py-4 text-xs font-medium">
+                                                {client.subscription?.expiryDate ? (() => {
+                                                    const days = Math.ceil((new Date(client.subscription.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
+                                                    return days > 0 ? (
+                                                        <span className="text-amber-400">{days} Days Left</span>
+                                                    ) : (
+                                                        <span className="text-red-500 font-bold bg-red-500/10 px-2 py-1 rounded">Expired</span>
+                                                    );
+                                                })() : (
+                                                    <span className="text-zinc-600">N/A</span>
+                                                )}
+                                            </td>
+
+                                            <td className="px-6 py-4">
+                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
+                                                    client.status === 'Active' ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' : 
+                                                    client.status === 'Suspended' ? 'text-red-400 bg-red-400/10 border-red-400/20' : 
+                                                    'text-amber-400 bg-amber-400/10 border-amber-400/20'
+                                                }`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${
+                                                        client.status === 'Active' ? 'bg-emerald-400' : 
+                                                        client.status === 'Suspended' ? 'bg-red-400' : 'bg-amber-400'
+                                                    }`}></span> 
+                                                    {client.status || 'Onboarding'}
+                                                </span>
+                                            </td>
+
+                                            <td className="px-6 py-4 text-right">
+                                                <button 
+                                                    onClick={() => openEditModal(client)} 
+                                                    className="p-2 text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all"
+                                                    title="Edit/Suspend Workspace"
+                                                >
+                                                    <Edit className="w-4 h-4" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             ) : (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-12 text-center text-zinc-500">
+                                    <td colSpan="8" className="px-6 py-12 text-center text-zinc-500">
                                         No matching workspaces found in database.
                                     </td>
                                 </tr>

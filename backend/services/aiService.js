@@ -1,18 +1,18 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// 💥 FIX: ৩ নম্বর প্যারামিটারে products এর জায়গায় historyArray রিসিভ করা হচ্ছে
-export const generateAIResponse = async (customerMessage, systemPrompt, historyArray = []) => {
+// 💥 FIX: ৪ নম্বর প্যারামিটারে apiKey রিসিভ করা হচ্ছে
+export const generateAIResponse = async (customerMessage, systemPrompt, historyArray = [], apiKey) => {
     try {
-        // চেক করা যে .env ফাইলে API Key বসানো আছে কি না
-        if (!process.env.GEMINI_API_KEY) {
-            console.error("❌ GEMINI_API_KEY is missing in .env file!");
-            return "System Error: AI Engine is not configured yet.";
+        // চেক করা যে API Key পাস করা হয়েছে কি না (ক্লায়েন্টের বা সিস্টেমের)
+        if (!apiKey) {
+            console.error("❌ API Key is missing for this transaction!");
+            return "দুঃখিত, AI সিস্টেমটি বর্তমানে কনফিগার করা নেই। দয়া করে পেজ অ্যাডমিনের সাথে যোগাযোগ করুন।";
         }
 
-        // Gemini ইনিশিয়ালাইজ করা
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        // 💥 FIX: ডাইনামিক API Key দিয়ে Gemini ইনিশিয়ালাইজ করা
+        const genAI = new GoogleGenerativeAI(apiKey);
         
-        // 💥 FIX: তোর লেটেস্ট মডেল এবং সিস্টেম ইনস্ট্রাকশন (যার ভেতরে অলরেডি প্রোডাক্ট ক্যাটালগ আছে)
+        // তোর লেটেস্ট মডেল এবং সিস্টেম ইনস্ট্রাকশন
         const model = genAI.getGenerativeModel({ 
             model: "gemini-3.1-flash-lite", 
             systemInstruction: systemPrompt 

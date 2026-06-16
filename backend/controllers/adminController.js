@@ -1,13 +1,13 @@
 import User from '../models/User.js';
 import AiConfig from '../models/AiConfig.js';
 
-// 💥 মাস্টার প্রাইসিং ইঞ্জিন: নতুন ৪ টিয়ারের লিমিট এবং স্পিড লক করে দেওয়া হলো!
+// 💥 মাস্টার প্রাইসিং ইঞ্জিন: নতুন ৪ টিয়ারের লিমিট এবং স্পিড লক করে দেওয়া হলো!
 const getPlanDetails = (plan) => {
     const p = plan?.toLowerCase() || 'basic';
     if (p === 'enterprise') return { mrr: 8000, monthlyLimit: 30000, rpmLimit: 12, name: 'Enterprise' };
-    if (p === 'business') return { mrr: 3000, monthlyLimit: 12000, rpmLimit: 10, name: 'Business' }; // 💥 NEW
-    if (p === 'pro') return { mrr: 1200, monthlyLimit: 5000, rpmLimit: 7, name: 'Pro' }; // 💥 UPDATED
-    return { mrr: 500, monthlyLimit: 3000, rpmLimit: 3, name: 'Basic' }; // 💥 UPDATED
+    if (p === 'business') return { mrr: 3000, monthlyLimit: 12000, rpmLimit: 10, name: 'Business' };
+    if (p === 'pro') return { mrr: 1200, monthlyLimit: 5000, rpmLimit: 7, name: 'Pro' };
+    return { mrr: 500, monthlyLimit: 3000, rpmLimit: 3, name: 'Basic' };
 };
 
 // 💥 হেল্পার: আজ থেকে ঠিক ৩০ দিন পরের ডেট বের করা (Billing Cycle)
@@ -95,7 +95,8 @@ export const getAllClients = async (req, res) => {
             const config = configs.find(c => c.user.toString() === user._id.toString());
             return { 
                 ...user, 
-                subscription: config?.subscription || null 
+                subscription: config?.subscription || null,
+                aiConfig: config || {} // 💥 FIX: ফ্রন্টএন্ডে API Key স্ট্যাটাস দেখানোর জন্য পুরো কনফিগ পাঠানো হলো!
             };
         });
 
@@ -154,5 +155,28 @@ export const updateClient = async (req, res) => {
     } catch (error) {
         console.error("Update Client Error:", error);
         res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// 💥 ৫. NEW: System API (Pro) Toggle করার ফাংশন
+export const toggleSystemApi = async (req, res) => {
+    try {
+        const { clientId } = req.params;
+        const { useSystemApiKey } = req.body;
+
+        const updatedConfig = await AiConfig.findOneAndUpdate(
+            { user: clientId },
+            { $set: { useSystemApiKey: useSystemApiKey } },
+            { new: true, upsert: true } 
+        );
+
+        if (!updatedConfig) {
+            return res.status(404).json({ success: false, error: "AI Config not found for this client." });
+        }
+
+        res.status(200).json({ success: true, message: "System API access updated successfully!" });
+    } catch (error) {
+        console.error("Toggle API Error:", error);
+        res.status(500).json({ success: false, error: "Failed to update System API access" });
     }
 };

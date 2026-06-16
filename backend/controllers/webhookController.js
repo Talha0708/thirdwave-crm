@@ -2,11 +2,11 @@ import AiConfig from '../models/AiConfig.js';
 import Order from '../models/Order.js'; 
 import Product from '../models/Product.js'; 
 import PendingMessage from '../models/PendingMessage.js'; 
-import Conversation from '../models/Conversation.js'; // 💥 NEW: History Model Import করা হলো
+import Conversation from '../models/Conversation.js'; // History Model
 import { generateAIResponse } from '../services/aiService.js';
 import { sendFacebookMessage } from '../services/facebookService.js';
 
-// 💥 FIX 6: Security - No hardcoded fallback token
+// Security - No hardcoded fallback token
 const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN;
 if (!VERIFY_TOKEN) {
     console.error("🚨 CRITICAL ERROR: META_VERIFY_TOKEN is missing in environment variables!");
@@ -65,7 +65,7 @@ export const receiveMessage = async (req, res) => {
     }
 };
 
-// 💥 Helper Function: Array Chunking for Concurrency Limit
+// Helper Function: Array Chunking for Concurrency Limit
 const chunkArray = (array, size) => {
     return Array.from({ length: Math.ceil(array.length / size) }, (v, i) =>
         array.slice(i * size, i * size + size)
@@ -77,19 +77,18 @@ export const processMessageQueue = async (req, res) => {
         console.log("⏰ [CRON HIT]: Executing Enterprise Queue Processor...");
 
         // ==========================================
-        // 💥 FIX 1: ATOMIC LOCK (Zero Race Condition)
+        // ATOMIC LOCK (Zero Race Condition)
         // ==========================================
         const lockedMessages = [];
         const BATCH_SIZE = 50;
 
-        // findOneAndUpdate দিয়ে একটা একটা করে লক করছি, যেন অন্য ক্রন জব ওভারল্যাপ না করে
         for (let i = 0; i < BATCH_SIZE; i++) {
             const lockedMsg = await PendingMessage.findOneAndUpdate(
                 { status: 'pending' },
                 { $set: { status: 'processing' } },
                 { sort: { createdAt: 1 }, new: true }
             );
-            if (!lockedMsg) break; // আর কোনো পেন্ডিং মেসেজ নেই
+            if (!lockedMsg) break; 
             lockedMessages.push(lockedMsg);
         }
 
@@ -98,7 +97,7 @@ export const processMessageQueue = async (req, res) => {
         }
 
         // ==========================================
-        // BATCH DB LOAD (Config & Product) - OK
+        // BATCH DB LOAD (Config & Product)
         // ==========================================
         const uniquePageIds = [...new Set(lockedMessages.map(m => m.pageId))];
 
@@ -129,19 +128,18 @@ export const processMessageQueue = async (req, res) => {
         });
 
         // ==========================================
-        // 💥 FIX 2: IN-MEMORY RPM (Fixed Minute Window)
+        // IN-MEMORY RPM (Fixed Minute Window)
         // ==========================================
         const messagesToProcess = [];
         const configUpdates = new Map();
         
         const now = new Date();
-        const currentMinute = new Date(now).setSeconds(0, 0); // বর্তমান মিনিটের শুরু
+        const currentMinute = new Date(now).setSeconds(0, 0); 
 
         for (let msg of lockedMessages) {
             let config = configUpdates.get(msg.pageId) || configMap[msg.pageId];
 
             if (!config || !config.autoReply) {
-                // 💥 FIX 4: Catch errors on fire-and-forget deletes
                 PendingMessage.findByIdAndDelete(msg._id).catch(err => console.error("Zombie delete error:", err));
                 continue;
             }
@@ -153,7 +151,6 @@ export const processMessageQueue = async (req, res) => {
                 continue;
             }
 
-            // Fixed Window Reset: লাস্ট মেসেজ যদি এই মিনিটের আগে হয়, তাহলে RPM জিরো করো
             const lastMsgMinute = new Date(sub.lastMessageTimestamp || 0).setSeconds(0, 0);
             if (lastMsgMinute < currentMinute) {
                 sub.rpmUsed = 0;
@@ -188,7 +185,7 @@ export const processMessageQueue = async (req, res) => {
         }
 
         // ==========================================
-        // 💥 FIX 5: CONCURRENCY LIMIT (Chunking) & HISTORY
+        // CONCURRENCY LIMIT & CORE LOGIC
         // ==========================================
         console.log(`🚀 Dispatching ${messagesToProcess.length} messages (Max 10 per batch)...`);
         
@@ -198,6 +195,22 @@ export const processMessageQueue = async (req, res) => {
         for (const chunk of chunks) {
             await Promise.all(chunk.map(async ({ msg, config }) => {
                 try {
+                    // ==========================================
+                    // API Key Selection Logic (BYOK)
+                    // ==========================================
+                    let activeApiKey = "";
+                    if (config.clientApiKey && config.clientApiKey.trim() !== "") {
+                        activeApiKey = config.clientApiKey;
+                    } else if (config.useSystemApiKey) {
+                        activeApiKey = process.env.GEMINI_API_KEY;
+                    }
+
+                    if (!activeApiKey) {
+                        console.log(`⚠️ Page ${msg.pageId} has no AI API Key configured. Message skipped.`);
+                        await PendingMessage.findByIdAndDelete(msg._id);
+                        return; 
+                    }
+
                     const uId = config.user.toString();
                     const activeProducts = productMap[uId] || [];
 
@@ -214,7 +227,7 @@ export const processMessageQueue = async (req, res) => {
                     const finalDynamicPrompt = config.systemPrompt + catalogContext;
 
                     // ==========================================
-                    // 💥 NEW: CHAT HISTORY (MEMORY) LOGIC
+                    // CHAT HISTORY (MEMORY) LOGIC
                     // ==========================================
                     let conversation = await Conversation.findOne({ senderId: msg.senderPsid, pageId: msg.pageId });
                     
@@ -226,24 +239,20 @@ export const processMessageQueue = async (req, res) => {
                         });
                     }
 
-                    // কাস্টমারের বর্তমান মেসেজটা পুশ করা হলো
                     conversation.messages.push({ role: 'user', content: msg.incomingText });
 
-                    // মেমোরি অপটিমাইজেশন: লাস্ট ২০টা মেসেজ রাখা হলো
                     if (conversation.messages.length > 20) {
                         conversation.messages = conversation.messages.slice(conversation.messages.length - 20);
                     }
 
-                    // ডাটাবেসের মেসেজগুলোকে AI সার্ভিসের ফরমেটে ম্যাপ করা
                     const historyArray = conversation.messages.map(m => ({ role: m.role, content: m.content }));
 
-                    // এআই কল (History সহ)
-                    const aiReply = await generateAIResponse(msg.incomingText, finalDynamicPrompt, historyArray);
+                    const aiReply = await generateAIResponse(msg.incomingText, finalDynamicPrompt, historyArray, activeApiKey);
                     
                     let finalMessageToSend = aiReply;
 
                     // ==========================================
-                    // 💥 FIX 3: BULLETPROOF JSON PARSING
+                    // BULLETPROOF JSON PARSING (REGEX FIXED)
                     // ==========================================
                     if (aiReply.includes('"trigger_order": true') || aiReply.includes('{')) {
                         try {
@@ -264,8 +273,13 @@ export const processMessageQueue = async (req, res) => {
                                         totalAmount: orderData.total_amount || 0,
                                         status: 'Pending'
                                     });
-                                    // Remove JSON from the reply string to send only the text to the user
-                                    finalMessageToSend = aiReply.replace(jsonString, '').replace(/```json|```/g, '').trim();
+                                    
+                                    // 💥 THE MAGIC FIX: Backticks replaced with [`]{3}
+                                    finalMessageToSend = aiReply.replace(jsonString, '').replace(/[`]{3}json|[`]{3}/g, '').trim();
+                                    
+                                    if (!finalMessageToSend || finalMessageToSend === '') {
+                                        finalMessageToSend = "আপনার অর্ডারটি সফলভাবে প্রসেস করা হচ্ছে... খুব শিঘ্রই আমরা যোগাযোগ করবো! 😊";
+                                    }
                                 }
                             }
                         } catch (e) {
@@ -273,15 +287,12 @@ export const processMessageQueue = async (req, res) => {
                         }
                     }
 
-                    // 💥 NEW: এআই এর রিপ্লাইটাও ডাটাবেসে সেভ করা (JSON ছাড়া ফ্রেশ টেক্সটটা)
                     if (finalMessageToSend) {
                         conversation.messages.push({ role: 'assistant', content: finalMessageToSend });
                         await conversation.save();
                     }
 
                     await sendFacebookMessage(msg.senderPsid, finalMessageToSend, config.integrations.facebook.accessToken);
-
-                    // 💥 FIX 4: Await the delete to avoid zombie messages
                     await PendingMessage.findByIdAndDelete(msg._id);
 
                 } catch (err) {

@@ -15,6 +15,12 @@ const aiConfigSchema = new mongoose.Schema({
     tone: { type: String, default: 'professional' },
     delay: { type: String, default: '0' },
     
+    // ==========================================
+    // 💥 NEW: BYOK (Bring Your Own Key) Architecture
+    // ==========================================
+    clientApiKey: { type: String, default: "" }, // ক্লায়েন্ট তার ড্যাশবোর্ড থেকে ইনপুট দেবে
+    useSystemApiKey: { type: Boolean, default: false }, // ডিফল্টভাবে অফ থাকবে, শুধু অ্যাডমিন ট্রু করতে পারবে
+    
     // 💥 NEW: Subscription & Rate Limiting Engine
     subscription: {
         // 💥 FIXED: 'business' added to enum!

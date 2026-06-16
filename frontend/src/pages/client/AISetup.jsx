@@ -21,6 +21,9 @@ const AISetup = () => {
     autoReply: true,
     tone: 'professional',
     delay: '0',
+    // 💥 NEW: BYOK API Key State
+    clientApiKey: "", 
+    useSystemApiKey: false, 
     integrations: {
       facebook: { isConnected: false, connectionMethod: 'none', pageId: '', pageName: '', accessToken: '' },
       whatsapp: { isConnected: false, connectionMethod: 'none', phoneNumberId: '', accessToken: '' }
@@ -74,6 +77,9 @@ const AISetup = () => {
           setAiConfig(prev => ({
             ...prev,
             ...data.data,
+            // 💥 NEW: Fetch API keys from backend
+            clientApiKey: data.data.clientApiKey || "",
+            useSystemApiKey: data.data.useSystemApiKey || false,
             integrations: {
               ...prev.integrations,
               ...(data.data.integrations || {})
@@ -140,7 +146,6 @@ const AISetup = () => {
 
       processToken();
     }, { 
-      // 💥 Scope-এ business_management অ্যাড করা হলো এবং auth_type দেওয়া হলো
       scope: 'pages_show_list,pages_messaging,pages_read_engagement,pages_manage_metadata,business_management',
       auth_type: 'rerequest', 
       return_scopes: true
@@ -366,6 +371,42 @@ const AISetup = () => {
         
         {/* ─── Main Configuration ─── */}
         <div className="lg:col-span-2 space-y-6">
+
+          {/* ========================================== */}
+          {/* 💥 NEW: BYOK API Key Setup UI Box */}
+          {/* ========================================== */}
+          <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl p-6 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4">
+              {aiConfig.clientApiKey ? (
+                <span className="px-3 py-1 bg-green-500/10 text-green-500 text-xs font-semibold rounded-full border border-green-500/20">Custom API Active</span>
+              ) : aiConfig.useSystemApiKey ? (
+                <span className="px-3 py-1 bg-blue-500/10 text-blue-500 text-xs font-semibold rounded-full border border-blue-500/20">Pro System API</span>
+              ) : (
+                <span className="px-3 py-1 bg-red-500/10 text-red-500 text-xs font-semibold rounded-full border border-red-500/20">AI Engine Paused</span>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-2 mb-2">
+              <Key className="w-5 h-5 text-yellow-500" />
+              <h2 className="text-lg font-medium text-white">Custom AI Engine (BYOK)</h2>
+            </div>
+            <p className="text-xs text-zinc-400 mb-5 max-w-xl">
+              Power your assistant with your own Google Gemini API key. It's completely free! Get your API key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Google AI Studio</a>.
+            </p>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-zinc-400">Gemini API Key</label>
+              <input
+                type="text"
+                value={aiConfig.clientApiKey}
+                onChange={(e) => setAiConfig({...aiConfig, clientApiKey: e.target.value})}
+                className="w-full px-4 py-3 bg-[#111111] border border-zinc-800 rounded-xl text-sm text-zinc-300 focus:outline-none focus:border-yellow-500/50 transition-all font-mono"
+                placeholder="Paste your API key here (e.g., AIzaSy...)"
+              />
+            </div>
+          </div>
+          {/* ========================================== */}
+
           <div className="bg-[#0A0A0A] border border-zinc-800 rounded-2xl p-6">
             <div className="flex items-center gap-2 mb-4">
               <MessageSquare className="w-5 h-5 text-zinc-300" />
