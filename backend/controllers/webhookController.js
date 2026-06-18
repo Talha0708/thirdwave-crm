@@ -29,6 +29,10 @@ export const receiveMessage = async (req, res) => {
     try {
         const body = req.body;
 
+        // 💥 ম্যাজিক ট্র্যাকার: ফেসবুক হিট করলেই লগে ধরা পড়বে!
+        console.log("\n🔥 [WEBHOOK POST HIT] Meta is knocking the server!");
+        console.log("👉 Payload:", JSON.stringify(body, null, 2));
+
         if (body.object === 'page') {
             const queuePromises = [];
 
@@ -36,11 +40,16 @@ export const receiveMessage = async (req, res) => {
                 const pageId = entry.id;
                 
                 entry.messaging.forEach((webhook_event) => {
+                    // 💥 ইকো মেসেজ (নিজে নিজেকে দেওয়া মেসেজ) চেক করার লগ
+                    if (webhook_event.message && webhook_event.message.is_echo) {
+                         console.log("⚠️ [IGNORED] Echo message detected. (Admin sent this)");
+                    }
+
                     if (webhook_event.message && webhook_event.message.text && !webhook_event.message.is_echo) {
                         const senderPsid = webhook_event.sender.id;
                         const incomingText = webhook_event.message.text;
                         
-                        console.log(`📩 [QUEUE PUSH] Page: ${pageId} | User: ${senderPsid}`);
+                        console.log(`📩 [QUEUE PUSH] Page: ${pageId} | User: ${senderPsid} | Text: "${incomingText}"`);
 
                         queuePromises.push(
                             PendingMessage.create({
