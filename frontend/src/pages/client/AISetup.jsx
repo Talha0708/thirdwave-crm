@@ -72,7 +72,8 @@ const AISetup = () => {
     const fetchConfig = async () => {
       try {
         const config = { headers: { Authorization: `Bearer ${token}` } };
-        const { data } = await axios.get(`${API_URL}/ai-config`, config);
+        // 💥 MAGIC FIX: Added ?t=${new Date().getTime()} to bust Vercel cache!
+        const { data } = await axios.get(`${API_URL}/ai-config?t=${new Date().getTime()}`, config);
         if (data.success && data.data) {
           setAiConfig(prev => ({
             ...prev,
